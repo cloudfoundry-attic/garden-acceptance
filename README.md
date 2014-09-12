@@ -1,5 +1,14 @@
 # Garden Acceptance Suite
 
+## Installation
+
+```
+brew install go
+export GOPATH=~/go
+```
+
+## Usage
+
 To use (assuming you have Garden running locally on `127.0.0.1:7777`)
 
 ```
@@ -8,3 +17,4 @@ go install github.com/onsi/ginkgo/ginkgo
 cd $GOPATH/cloudfoundry-incubator/garden-acceptance
 ginkgo
 ```
+
