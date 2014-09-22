@@ -84,7 +84,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
 		})
 
-		It("should fail when creating a container shows rootfs does not have /bin/sh (#77771202)", func() {
+		It("should fail when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
 			handle := uniqueHandle()
 			_, err := gardenClient.Create(api.ContainerSpec{
 				Handle:     handle,
