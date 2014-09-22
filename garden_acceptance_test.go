@@ -161,6 +161,37 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				gardenClient.Destroy("my-none-ubuntu-based-docker-image")
 			})
 		})
+
+		Describe("BindMounts", func() {
+			It("should mount a RO BindMount", func() {
+				// rm /tmp/bindmount-test
+
+				container, err := gardenClient.Create(api.ContainerSpec{
+					Handle: "bindmount-container",
+					BindMounts: []api.BindMount{
+						api.BindMount{SrcPath: "/tmp/", DstPath: "/home/vcap/my_tmp", Mode: api.BindMountModeRO},
+					},
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				// touch /tmp/bindmount-test
+
+				buffer := gbytes.NewBuffer()
+				process, err := container.Run(api.ProcessSpec{
+					Path: "ls",
+					Args: []string{"/home/vcap/my_tmp/bindmount-test"},
+				}, recordedProcessIO(buffer))
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+
+				gardenClient.Destroy("bindmount-container")
+
+				Ω(buffer.Contents()).Should(ContainSubstring("/home/vcap/my_tmp/bindmount-test"))
+				Ω(buffer.Contents()).ShouldNot(ContainSubstring("No such file or directory"))
+			})
+		})
 	})
 
 	// 	XDescribe("Bugs with snapshotting (#77767958)", func() {
