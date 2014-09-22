@@ -163,64 +163,64 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	XDescribe("Bugs with snapshotting (#77767958)", func() {
-		BeforeEach(func() {
-			fmt.Println(`
-!!!READ THIS!!!
-Using this test is non-trivial.  You must:
-
-- Focus the "Bugs with snapshotting" Describe
-- Make sure you are running bosh-lite
-- Make sure the -snapshots flag is set in the control script for the warden running in your cell.
-- Run this test the first time: this will create containers and both tests should pass.
-- Run this test again: it should say that it will NOT create the container and still pass.
-- bosh ssh to the cell and monit restart warden
-- wait a bit and make sure warden is back up
-- Run this test again -- this time these tests will fail with 500.
-- Run it a few more times, eventually (I've found) it starts passing again.
-`)
-		})
-
-		It("should support snapshotting", func() {
-			handle := "snapshotable-container"
-			_, err := gardenClient.Lookup(handle)
-			if err != nil {
-				fmt.Println("CREATING CONTAINER")
-
-				_, err = gardenClient.Create(api.ContainerSpec{
-					Handle: handle,
-					Env: []string{
-						"ROOT_ENV=A",
-						"OVERWRITTEN_ENV=B",
-						"HOME=/nowhere",
-					},
-				})
-				Ω(err).ShouldNot(HaveOccurred())
-			} else {
-				fmt.Println("NOT CREATING CONTAINER")
-			}
-
-			container, err := gardenClient.Lookup(handle)
-			Ω(err).ShouldNot(HaveOccurred())
-			buffer := gbytes.NewBuffer()
-			process, err := container.Run(api.ProcessSpec{
-				Path: "bash",
-				Args: []string{"-c", "printenv"},
-				Env: []string{
-					"OVERWRITTEN_ENV=C",
-				},
-			}, recordedProcessIO(buffer))
-
-			Ω(err).ShouldNot(HaveOccurred())
-
-			process.Wait()
-
-			Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
-			Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
-			Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
-			Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/nowhere"))
-			Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
-		})
-	})
+	// 	XDescribe("Bugs with snapshotting (#77767958)", func() {
+	// 		BeforeEach(func() {
+	// 			fmt.Println(`
+	// !!!READ THIS!!!
+	// Using this test is non-trivial.  You must:
+	//
+	// - Focus the "Bugs with snapshotting" Describe
+	// - Make sure you are running bosh-lite
+	// - Make sure the -snapshots flag is set in the control script for the warden running in your cell.
+	// - Run this test the first time: this will create containers and both tests should pass.
+	// - Run this test again: it should say that it will NOT create the container and still pass.
+	// - bosh ssh to the cell and monit restart warden
+	// - wait a bit and make sure warden is back up
+	// - Run this test again -- this time these tests will fail with 500.
+	// - Run it a few more times, eventually (I've found) it starts passing again.
+	// `)
+	// 		})
+	//
+	// 		It("should support snapshotting", func() {
+	// 			handle := "snapshotable-container"
+	// 			_, err := gardenClient.Lookup(handle)
+	// 			if err != nil {
+	// 				fmt.Println("CREATING CONTAINER")
+	//
+	// 				_, err = gardenClient.Create(api.ContainerSpec{
+	// 					Handle: handle,
+	// 					Env: []string{
+	// 						"ROOT_ENV=A",
+	// 						"OVERWRITTEN_ENV=B",
+	// 						"HOME=/nowhere",
+	// 					},
+	// 				})
+	// 				Ω(err).ShouldNot(HaveOccurred())
+	// 			} else {
+	// 				fmt.Println("NOT CREATING CONTAINER")
+	// 			}
+	//
+	// 			container, err := gardenClient.Lookup(handle)
+	// 			Ω(err).ShouldNot(HaveOccurred())
+	// 			buffer := gbytes.NewBuffer()
+	// 			process, err := container.Run(api.ProcessSpec{
+	// 				Path: "bash",
+	// 				Args: []string{"-c", "printenv"},
+	// 				Env: []string{
+	// 					"OVERWRITTEN_ENV=C",
+	// 				},
+	// 			}, recordedProcessIO(buffer))
+	//
+	// 			Ω(err).ShouldNot(HaveOccurred())
+	//
+	// 			process.Wait()
+	//
+	// 			Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
+	// 			Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
+	// 			Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
+	// 			Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/nowhere"))
+	// 			Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
+	// 		})
+	// 	})
 
 })
