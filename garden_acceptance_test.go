@@ -169,7 +169,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				container, err := gardenClient.Create(api.ContainerSpec{
 					Handle: "bindmount-container",
 					BindMounts: []api.BindMount{
-						api.BindMount{SrcPath: "/tmp/", DstPath: "/home/vcap/my_tmp", Mode: api.BindMountModeRO},
+						api.BindMount{SrcPath: "/tmp", DstPath: "/home/vcap/my_tmp", Mode: api.BindMountModeRO},
 					},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -179,7 +179,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(api.ProcessSpec{
 					Path: "ls",
-					Args: []string{"/home/vcap/my_tmp/bindmount-test"},
+					Args: []string{"/home/vcap/my_tmp"},
 				}, recordedProcessIO(buffer))
 
 				Ω(err).ShouldNot(HaveOccurred())
