@@ -17,6 +17,16 @@ func uniqueHandle() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
+var lsProcessSpec = api.ProcessSpec{Path: "ls"}
+var silentProcessIO = api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
+
+func recordedProcessIO(buffer *gbytes.Buffer) api.ProcessIO {
+	return api.ProcessIO{
+		Stdout: io.MultiWriter(buffer, GinkgoWriter),
+		Stderr: io.MultiWriter(buffer, GinkgoWriter),
+	}
+}
+
 var _ = Describe("Garden Acceptance Tests", func() {
 	var gardenClient client.Client
 
@@ -27,9 +37,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("things that now work", func() {
 		It("should fail when attempting to delete a container twice (#76616270)", func() {
-			_, err := gardenClient.Create(api.ContainerSpec{
-				Handle: "my-fun-handle",
-			})
+			_, err := gardenClient.Create(api.ContainerSpec{Handle: "my-fun-handle"})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			var errors = make(chan error)
@@ -66,10 +74,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Env: []string{
 					"OVERWRITTEN_ENV=C",
 				},
-			}, api.ProcessIO{
-				Stdout: io.MultiWriter(buffer, GinkgoWriter),
-				Stderr: io.MultiWriter(buffer, GinkgoWriter),
-			})
+			}, recordedProcessIO(buffer))
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -99,9 +104,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				err := gardenClient.Destroy(handle)
 				Ω(err).Should(HaveOccurred())
 
-				_, err = gardenClient.Create(api.ContainerSpec{
-					Handle: handle,
-				})
+				_, err = gardenClient.Create(api.ContainerSpec{Handle: handle})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				_, err = gardenClient.Lookup(handle)
@@ -117,14 +120,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			It("should not allow creating an already existing container", func() {
 				handle := fmt.Sprintf("%d", time.Now().UnixNano())
 
-				_, err := gardenClient.Create(api.ContainerSpec{
-					Handle: handle,
-				})
+				_, err := gardenClient.Create(api.ContainerSpec{Handle: handle})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				_, err = gardenClient.Create(api.ContainerSpec{
-					Handle: handle,
-				})
+				_, err = gardenClient.Create(api.ContainerSpec{Handle: handle})
 				Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
 
 				gardenClient.Destroy(handle)
@@ -139,12 +138,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				process, err := container.Run(api.ProcessSpec{
-					Path: "ls",
-				}, api.ProcessIO{
-					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
-				})
+				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				process.Wait()
@@ -159,12 +153,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				process, err := container.Run(api.ProcessSpec{
-					Path: "ls",
-				}, api.ProcessIO{
-					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
-				})
+				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				process.Wait()
@@ -220,10 +209,7 @@ Using this test is non-trivial.  You must:
 				Env: []string{
 					"OVERWRITTEN_ENV=C",
 				},
-			}, api.ProcessIO{
-				Stdout: io.MultiWriter(buffer, GinkgoWriter),
-				Stderr: io.MultiWriter(buffer, GinkgoWriter),
-			})
+			}, recordedProcessIO(buffer))
 
 			Ω(err).ShouldNot(HaveOccurred())
 
