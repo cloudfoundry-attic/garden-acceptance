@@ -3,6 +3,8 @@ package garden_acceptance_test
 import (
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/api"
@@ -25,6 +27,21 @@ func recordedProcessIO(buffer *gbytes.Buffer) api.ProcessIO {
 		Stdout: io.MultiWriter(buffer, GinkgoWriter),
 		Stderr: io.MultiWriter(buffer, GinkgoWriter),
 	}
+}
+
+// Run a command in the garden-linux-release Vagrant bosh machine and returns its output.
+func runInVagrant(cmd string) string {
+	glrDir := os.Getenv("GARDEN_LINUX_RELEASE_DIR")
+	if glrDir == "" {
+		Fail("$GARDEN_LINUX_RELEASE_DIR must be set to the directory path of the garden-linux-release repository")
+	}
+	command := exec.Command("vagrant", "ssh", "-c", cmd)
+	command.Dir = glrDir
+	output, err := command.Output()
+	if err != nil {
+		Fail(fmt.Sprintf("vagrant command %s output unavailable: %s", command, err))
+	}
+	return string(output)
 }
 
 var _ = Describe("Garden Acceptance Tests", func() {
@@ -164,22 +181,36 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		Describe("BindMounts", func() {
 			It("should mount a RO BindMount", func() {
-				// Todo: Inside the vagrant: rm /tmp/bindmount-test
+				runInVagrant("sudo rm -f /var/bindmount-test")
 
 				container, err := gardenClient.Create(api.ContainerSpec{
 					Handle: "bindmount-container",
 					BindMounts: []api.BindMount{
-						api.BindMount{SrcPath: "/tmp", DstPath: "/home/vcap/my_tmp", Mode: api.BindMountModeRO},
+						api.BindMount{SrcPath: "/var", DstPath: "/home/vcap/my_var", Mode: api.BindMountModeRO},
 					},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				// Todo: Inside the vagrant: touch /tmp/bindmount-test
+				// Check that a new file in the mounted directory appears in the bind mount.
+				runInVagrant("sudo touch /var/bindmount-test")
 
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(api.ProcessSpec{
 					Path: "ls",
-					Args: []string{"/home/vcap/my_tmp"},
+					Args: []string{"-l", "/home/vcap/my_var"},
+				}, recordedProcessIO(buffer))
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+
+				Ω(buffer.Contents()).Should(ContainSubstring("bindmount-test"))
+				runInVagrant("sudo rm /var/bindmount-test")
+
+				// Check mount really is read-only.
+				process, err = container.Run(api.ProcessSpec{
+					Path: "rm",
+					Args: []string{"/home/vcap/my_var/bindmount-test"},
 				}, recordedProcessIO(buffer))
 
 				Ω(err).ShouldNot(HaveOccurred())
@@ -187,8 +218,40 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				process.Wait()
 
 				gardenClient.Destroy("bindmount-container")
+			})
 
-				Ω(buffer.Contents()).Should(ContainSubstring("bindmount-test"))
+			It("should mount a RW BindMount", func() {
+				container, err := gardenClient.Create(api.ContainerSpec{
+					Handle: "bindmount-container",
+					BindMounts: []api.BindMount{
+						api.BindMount{SrcPath: "/home/vcap", DstPath: "/home/vcap/vcaphome", Mode: api.BindMountModeRO, Origin: api.BindMountOriginContainer},
+					},
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				// Check that a new file in the bind mount directory appears in the mounted directory.
+				buffer := gbytes.NewBuffer()
+				process, err := container.Run(api.ProcessSpec{
+					Path: "touch",
+					Args: []string{"/home/vcap/vcaphome/bindmount-rw-test"},
+				}, recordedProcessIO(buffer))
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+
+				process, err = container.Run(api.ProcessSpec{
+					Path: "ls",
+					Args: []string{"-l", "/home/vcap"},
+				}, recordedProcessIO(buffer))
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+
+				Ω(buffer.Contents()).Should(ContainSubstring("bindmount-rw-test"))
+
+				gardenClient.Destroy("bindmount-container")
 			})
 		})
 	})
