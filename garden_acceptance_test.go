@@ -50,6 +50,12 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	BeforeEach(func() {
 		conn := connection.New("tcp", "127.0.0.1:7777")
 		gardenClient = client.New(conn)
+		// Clean up after any previous test failure.
+		gardenClient.Destroy("bindmount-container")
+	})
+
+	AfterEach(func() {
+		gardenClient.Destroy("bindmount-container")
 	})
 
 	Describe("things that now work", func() {
@@ -205,26 +211,29 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				process.Wait()
 
 				Ω(buffer.Contents()).Should(ContainSubstring("bindmount-test"))
-				runInVagrant("sudo rm /var/bindmount-test")
 
 				// Check mount really is read-only.
+				buffer = gbytes.NewBuffer()
 				process, err = container.Run(api.ProcessSpec{
 					Path: "rm",
 					Args: []string{"/home/vcap/my_var/bindmount-test"},
 				}, recordedProcessIO(buffer))
 
 				Ω(err).ShouldNot(HaveOccurred())
+				status, err := process.Wait()
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(status).Should(Equal(1))
+				Ω(buffer.Contents()).Should(ContainSubstring("Read-only file system"))
 
-				process.Wait()
-
-				gardenClient.Destroy("bindmount-container")
+				runInVagrant("sudo rm /var/bindmount-test")
 			})
 
 			It("should mount a RW BindMount", func() {
 				container, err := gardenClient.Create(api.ContainerSpec{
 					Handle: "bindmount-container",
 					BindMounts: []api.BindMount{
-						api.BindMount{SrcPath: "/home/vcap", DstPath: "/home/vcap/vcaphome", Mode: api.BindMountModeRO, Origin: api.BindMountOriginContainer},
+						// Specify the container as origin, so SrcPath is a path in the root file system rather than the host.
+						api.BindMount{SrcPath: "/home/vcap", DstPath: "/home/vcap/vcaphome", Mode: api.BindMountModeRW, Origin: api.BindMountOriginContainer},
 					},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -240,6 +249,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 				process.Wait()
 
+				buffer = gbytes.NewBuffer()
 				process, err = container.Run(api.ProcessSpec{
 					Path: "ls",
 					Args: []string{"-l", "/home/vcap"},
@@ -250,8 +260,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				process.Wait()
 
 				Ω(buffer.Contents()).Should(ContainSubstring("bindmount-rw-test"))
-
-				gardenClient.Destroy("bindmount-container")
 			})
 		})
 	})
