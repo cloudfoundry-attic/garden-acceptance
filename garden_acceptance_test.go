@@ -186,18 +186,20 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		Describe("BindMounts", func() {
-			It("should mount a RO BindMount", func() {
+			It("should mount a read-only BindMount (#75464648)", func() {
 				runInVagrant("sudo rm -f /var/bindmount-test")
 
 				container, err := gardenClient.Create(api.ContainerSpec{
 					Handle: "bindmount-container",
 					BindMounts: []api.BindMount{
-						api.BindMount{SrcPath: "/var", DstPath: "/home/vcap/my_var", Mode: api.BindMountModeRO},
+						api.BindMount{
+							SrcPath: "/var",
+							DstPath: "/home/vcap/my_var",
+							Mode:    api.BindMountModeRO},
 					},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				// Check that a new file in the mounted directory appears in the bind mount.
 				runInVagrant("sudo touch /var/bindmount-test")
 
 				buffer := gbytes.NewBuffer()
@@ -228,17 +230,23 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				runInVagrant("sudo rm /var/bindmount-test")
 			})
 
-			It("should mount a RW BindMount", func() {
+			It("should mount a read/write BindMount (#75464648)", func() {
 				container, err := gardenClient.Create(api.ContainerSpec{
 					Handle: "bindmount-container",
 					BindMounts: []api.BindMount{
-						// Specify the container as origin, so SrcPath is a path in the root file system rather than the host.
-						api.BindMount{SrcPath: "/home/vcap", DstPath: "/home/vcap/vcaphome", Mode: api.BindMountModeRW, Origin: api.BindMountOriginContainer},
+						// Specify the container as origin, so SrcPath is a path
+						// in the root file system rather than the host.
+						api.BindMount{
+							SrcPath: "/home/vcap",
+							DstPath: "/home/vcap/vcaphome",
+							Mode:    api.BindMountModeRW,
+							Origin:  api.BindMountOriginContainer,
+						},
 					},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				// Check that a new file in the bind mount directory appears in the mounted directory.
+				// Can we write to it?
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(api.ProcessSpec{
 					Path: "touch",
