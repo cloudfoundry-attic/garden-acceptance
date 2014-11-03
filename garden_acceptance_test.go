@@ -29,17 +29,16 @@ func recordedProcessIO(buffer *gbytes.Buffer) api.ProcessIO {
 	}
 }
 
-// Run a command in the garden-linux-release Vagrant bosh machine and returns its output.
 func runInVagrant(cmd string) string {
 	glrDir := os.Getenv("GARDEN_LINUX_RELEASE_DIR")
 	if glrDir == "" {
-		Fail("$GARDEN_LINUX_RELEASE_DIR must be set to the directory path of the garden-linux-release repository")
+		Fail("$GARDEN_LINUX_RELEASE_DIR must be set to the path of the garden-linux-release repo")
 	}
 	command := exec.Command("vagrant", "ssh", "-c", cmd)
 	command.Dir = glrDir
-	output, err := command.Output()
+	output, err := command.CombinedOutput()
 	if err != nil {
-		Fail(fmt.Sprintf("vagrant command %s output unavailable: %s", command, err))
+		Fail(fmt.Sprintf("vagrant command %+v output unavailable: %s", command, err))
 	}
 	return string(output)
 }
@@ -51,11 +50,38 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		conn := connection.New("tcp", "127.0.0.1:7777")
 		gardenClient = client.New(conn)
 		// Clean up after any previous test failure.
-		gardenClient.Destroy("bindmount-container")
+		containers, err := gardenClient.Containers(nil)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		for _, container := range containers {
+			gardenClient.Destroy(container.Handle())
+		}
 	})
 
 	AfterEach(func() {
-		gardenClient.Destroy("bindmount-container")
+		containers, err := gardenClient.Containers(nil)
+		Ω(err).ShouldNot(HaveOccurred())
+		for _, container := range containers {
+			gardenClient.Destroy(container.Handle())
+		}
+	})
+
+	Describe("Networking", func() {
+		It("should respect network option to set specific ip for a container (#75464982)", func() {
+			handle := uniqueHandle()
+			container, err := gardenClient.Create(api.ContainerSpec{
+				Handle:     handle,
+				Network:    "10.2.0.0/30",
+				RootFSPath: "docker:///onsi/grace-busybox",
+			})
+
+			Ω(err).ShouldNot(HaveOccurred())
+
+			info, _ := container.Info()
+			output := runInVagrant(fmt.Sprintf("cd %v && sudo ./bin/wsh /sbin/ifconfig", info.ContainerPath))
+			Ω(output).Should(ContainSubstring("inet addr:10.2.0."))
+			Ω(output).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
+		})
 	})
 
 	Describe("things that now work", func() {
@@ -123,7 +149,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		Describe("Bugs around the container lifecycle (#77768828)", func() {
 			It("should support deleting a container after an errant delete", func() {
-				handle := fmt.Sprintf("%d", time.Now().UnixNano())
+				handle := uniqueHandle()
 				err := gardenClient.Destroy(handle)
 				Ω(err).Should(HaveOccurred())
 
@@ -141,7 +167,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("should not allow creating an already existing container", func() {
-				handle := fmt.Sprintf("%d", time.Now().UnixNano())
+				handle := uniqueHandle()
 
 				_, err := gardenClient.Create(api.ContainerSpec{Handle: handle})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -187,7 +213,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		Describe("BindMounts", func() {
 			It("should mount a read-only BindMount (#75464648)", func() {
-				runInVagrant("sudo rm -f /var/bindmount-test")
+				runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
 
 				container, err := gardenClient.Create(api.ContainerSpec{
 					Handle: "bindmount-container",
@@ -227,7 +253,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(status).Should(Equal(1))
 				Ω(buffer.Contents()).Should(ContainSubstring("Read-only file system"))
 
-				runInVagrant("sudo rm /var/bindmount-test")
+				runInVagrant("sudo rm -f /var/bindmount-test")
 			})
 
 			It("should mount a read/write BindMount (#75464648)", func() {
