@@ -43,27 +43,28 @@ func runInVagrant(cmd string) string {
 	return string(output)
 }
 
+func runInsideContainer(container api.Container, cmd string) string {
+	info, _ := container.Info()
+	output := runInVagrant(fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd))
+	return output
+}
+
+func destroyAllContainers(client client.Client) {
+	containers, err := client.Containers(nil)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	for _, container := range containers {
+		client.Destroy(container.Handle())
+	}
+}
+
 var _ = Describe("Garden Acceptance Tests", func() {
 	var gardenClient client.Client
 
 	BeforeEach(func() {
 		conn := connection.New("tcp", "127.0.0.1:7777")
 		gardenClient = client.New(conn)
-		// Clean up after any previous test failure.
-		containers, err := gardenClient.Containers(nil)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		for _, container := range containers {
-			gardenClient.Destroy(container.Handle())
-		}
-	})
-
-	AfterEach(func() {
-		containers, err := gardenClient.Containers(nil)
-		Ω(err).ShouldNot(HaveOccurred())
-		for _, container := range containers {
-			gardenClient.Destroy(container.Handle())
-		}
+		destroyAllContainers(gardenClient)
 	})
 
 	Describe("Networking", func() {
@@ -77,10 +78,16 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			info, _ := container.Info()
-			output := runInVagrant(fmt.Sprintf("cd %v && sudo ./bin/wsh /sbin/ifconfig", info.ContainerPath))
-			Ω(output).Should(ContainSubstring("inet addr:10.2.0."))
+			output := runInsideContainer(container, "/sbin/ifconfig")
+			Ω(output).Should(ContainSubstring("inet addr:10.2.0.1"))
 			Ω(output).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
+
+			output = runInsideContainer(container, "/sbin/ping -c 1 -w 3 google.com")
+			Ω(output).Should(ContainSubstring("64 bytes from"))
+			Ω(output).ShouldNot(ContainSubstring("100% packet loss"))
+
+			output = runInsideContainer(container, "/sbin/route | grep default")
+			Ω(output).Should(ContainSubstring("10.2.0.2"))
 		})
 	})
 
