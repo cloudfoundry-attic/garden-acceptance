@@ -93,15 +93,16 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("things that now work", func() {
 		It("should fail when attempting to delete a container twice (#76616270)", func() {
-			_, err := gardenClient.Create(api.ContainerSpec{Handle: "my-fun-handle"})
+			handle := uniqueHandle()
+			_, err := gardenClient.Create(api.ContainerSpec{Handle: handle})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			var errors = make(chan error)
 			go func() {
-				errors <- gardenClient.Destroy("my-fun-handle")
+				errors <- gardenClient.Destroy(handle)
 			}()
 			go func() {
-				errors <- gardenClient.Destroy("my-fun-handle")
+				errors <- gardenClient.Destroy(handle)
 			}()
 
 			results := []error{
@@ -113,8 +114,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("should support setting environment variables on the container (#77303456)", func() {
+			handle := uniqueHandle()
 			container, err := gardenClient.Create(api.ContainerSpec{
-				Handle: "cap'n-planet",
+				Handle: handle,
 				Env: []string{
 					"ROOT_ENV=A",
 					"OVERWRITTEN_ENV=B",
@@ -136,7 +138,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 			process.Wait()
 
-			gardenClient.Destroy("cap'n-planet")
+			gardenClient.Destroy(handle)
 
 			Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
 			Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
@@ -188,8 +190,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		Describe("mounting docker images", func() {
 			It("should mount an ubuntu docker image, just fine", func() {
+				handle := uniqueHandle()
 				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle:     "my-ubuntu-based-docker-image",
+					Handle:     handle,
 					RootFSPath: "docker:///onsi/grace",
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -199,12 +202,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 				process.Wait()
 
-				gardenClient.Destroy("my-ubuntu-based-docker-image")
+				gardenClient.Destroy(handle)
 			})
 
 			It("should mount a none-ubuntu docker image, just fine", func() {
+				handle := uniqueHandle()
 				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle:     "my-none-ubuntu-based-docker-image",
+					Handle:     handle,
 					RootFSPath: "docker:///onsi/grace-busybox",
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -214,7 +218,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 				process.Wait()
 
-				gardenClient.Destroy("my-none-ubuntu-based-docker-image")
+				gardenClient.Destroy(handle)
 			})
 		})
 
@@ -222,8 +226,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			It("should mount a read-only BindMount (#75464648)", func() {
 				runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
 
+				handle := uniqueHandle()
 				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle: "bindmount-container",
+					Handle: handle,
 					BindMounts: []api.BindMount{
 						api.BindMount{
 							SrcPath: "/var",
@@ -264,8 +269,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("should mount a read/write BindMount (#75464648)", func() {
+				handle := uniqueHandle()
 				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle: "bindmount-container",
+					Handle: handle,
 					BindMounts: []api.BindMount{
 						// Specify the container as origin, so SrcPath is a path
 						// in the root file system rather than the host.
