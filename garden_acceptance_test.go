@@ -43,10 +43,10 @@ func runInVagrant(cmd string) string {
 	return string(output)
 }
 
-func runInsideContainer(container api.Container, cmd string) string {
+func runInsideContainer(container api.Container, cmd string) (output string) {
 	info, _ := container.Info()
-	output := runInVagrant(fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd))
-	return output
+	output = runInVagrant(fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd))
+	return
 }
 
 func destroyAllContainers(client client.Client) {
@@ -56,6 +56,12 @@ func destroyAllContainers(client client.Client) {
 	for _, container := range containers {
 		client.Destroy(container.Handle())
 	}
+}
+
+func createContainer(client api.Client, spec api.ContainerSpec) (container api.Container) {
+	container, err := client.Create(spec)
+	Ω(err).ShouldNot(HaveOccurred())
+	return
 }
 
 var _ = Describe("Garden Acceptance Tests", func() {
@@ -69,14 +75,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("Networking", func() {
 		It("should respect network option to set specific ip for a container (#75464982)", func() {
-			handle := uniqueHandle()
-			container, err := gardenClient.Create(api.ContainerSpec{
-				Handle:     handle,
+			container := createContainer(gardenClient, api.ContainerSpec{
 				Network:    "10.2.0.0/30",
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
-
-			Ω(err).ShouldNot(HaveOccurred())
 
 			output := runInsideContainer(container, "/sbin/ifconfig")
 			Ω(output).Should(ContainSubstring("inet addr:10.2.0.1"))
@@ -93,16 +95,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("things that now work", func() {
 		It("should fail when attempting to delete a container twice (#76616270)", func() {
-			handle := uniqueHandle()
-			_, err := gardenClient.Create(api.ContainerSpec{Handle: handle})
-			Ω(err).ShouldNot(HaveOccurred())
+			container := createContainer(gardenClient, api.ContainerSpec{})
 
 			var errors = make(chan error)
 			go func() {
-				errors <- gardenClient.Destroy(handle)
+				errors <- gardenClient.Destroy(container.Handle())
 			}()
 			go func() {
-				errors <- gardenClient.Destroy(handle)
+				errors <- gardenClient.Destroy(container.Handle())
 			}()
 
 			results := []error{
@@ -114,16 +114,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("should support setting environment variables on the container (#77303456)", func() {
-			handle := uniqueHandle()
-			container, err := gardenClient.Create(api.ContainerSpec{
-				Handle: handle,
+			container := createContainer(gardenClient, api.ContainerSpec{
 				Env: []string{
 					"ROOT_ENV=A",
 					"OVERWRITTEN_ENV=B",
 					"HOME=/nowhere",
 				},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
 
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(api.ProcessSpec{
@@ -138,8 +135,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 			process.Wait()
 
-			gardenClient.Destroy(handle)
-
 			Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
 			Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
 			Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
@@ -148,11 +143,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("should fail when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
-			handle := uniqueHandle()
-			_, err := gardenClient.Create(api.ContainerSpec{
-				Handle:     handle,
-				RootFSPath: "docker:///cloudfoundry/empty",
-			})
+			_, err := gardenClient.Create(api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
 			Ω(err).Should(HaveOccurred())
 		})
 
@@ -183,42 +174,26 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 				_, err = gardenClient.Create(api.ContainerSpec{Handle: handle})
 				Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
-
-				gardenClient.Destroy(handle)
 			})
 		})
 
 		Describe("mounting docker images", func() {
 			It("should mount an ubuntu docker image, just fine", func() {
-				handle := uniqueHandle()
-				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle:     handle,
-					RootFSPath: "docker:///onsi/grace",
-				})
-				Ω(err).ShouldNot(HaveOccurred())
+				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
 
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				process.Wait()
-
-				gardenClient.Destroy(handle)
 			})
 
 			It("should mount a none-ubuntu docker image, just fine", func() {
-				handle := uniqueHandle()
-				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle:     handle,
-					RootFSPath: "docker:///onsi/grace-busybox",
-				})
-				Ω(err).ShouldNot(HaveOccurred())
+				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
 
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				process.Wait()
-
-				gardenClient.Destroy(handle)
 			})
 		})
 
@@ -226,9 +201,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			It("should mount a read-only BindMount (#75464648)", func() {
 				runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
 
-				handle := uniqueHandle()
-				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle: handle,
+				container := createContainer(gardenClient, api.ContainerSpec{
 					BindMounts: []api.BindMount{
 						api.BindMount{
 							SrcPath: "/var",
@@ -236,7 +209,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 							Mode:    api.BindMountModeRO},
 					},
 				})
-				Ω(err).ShouldNot(HaveOccurred())
 
 				runInVagrant("sudo touch /var/bindmount-test")
 
@@ -269,12 +241,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("should mount a read/write BindMount (#75464648)", func() {
-				handle := uniqueHandle()
-				container, err := gardenClient.Create(api.ContainerSpec{
-					Handle: handle,
+				container := createContainer(gardenClient, api.ContainerSpec{
 					BindMounts: []api.BindMount{
-						// Specify the container as origin, so SrcPath is a path
-						// in the root file system rather than the host.
 						api.BindMount{
 							SrcPath: "/home/vcap",
 							DstPath: "/home/vcap/vcaphome",
@@ -283,7 +251,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 						},
 					},
 				})
-				Ω(err).ShouldNot(HaveOccurred())
 
 				// Can we write to it?
 				buffer := gbytes.NewBuffer()
