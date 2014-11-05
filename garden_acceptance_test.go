@@ -51,7 +51,7 @@ func runInVagrant(cmd string) (string, string) {
 	return stdout.String(), stderr.String()
 }
 
-func runInsideContainer(container api.Container, cmd string) (string, string) {
+func runInContainer(container api.Container, cmd string) (string, string) {
 	info, _ := container.Info()
 	command := fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd)
 	return runInVagrant(command)
@@ -88,15 +88,15 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
 
-			stdout, _ := runInsideContainer(container, "/sbin/ifconfig")
+			stdout, _ := runInContainer(container, "/sbin/ifconfig")
 			Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
 			Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
 
-			stdout, _ = runInsideContainer(container, "/sbin/ping -c 1 -w 3 google.com")
+			stdout, _ = runInContainer(container, "/sbin/ping -c 1 -w 3 google.com")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 
-			stdout, _ = runInsideContainer(container, "/sbin/route | grep default")
+			stdout, _ = runInContainer(container, "/sbin/route | grep default")
 			Ω(stdout).Should(ContainSubstring("10.2.0.2"))
 		})
 	})
@@ -219,10 +219,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				})
 
 				runInVagrant("sudo touch /var/bindmount-test")
-				stdout, _ := runInsideContainer(container, "ls -l /home/vcap/readonly")
+				stdout, _ := runInContainer(container, "ls -l /home/vcap/readonly")
 				Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
-				stdout, stderr := runInsideContainer(container, "rm /home/vcap/readonly/bindmount-test")
+				stdout, stderr := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
 				Ω(stderr).Should(ContainSubstring("Read-only file system"))
 
 				runInVagrant("sudo rm -f /var/bindmount-test")
@@ -240,11 +240,11 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					},
 				})
 
-				stdout, _ := runInsideContainer(container, "ls -l /home/vcap/readwrite")
+				stdout, _ := runInContainer(container, "ls -l /home/vcap/readwrite")
 				Ω(stdout).ShouldNot(ContainSubstring("bindmount-test"))
 
-				stdout, _ = runInsideContainer(container, "touch /home/vcap/readwrite/bindmount-test")
-				stdout, _ = runInsideContainer(container, "ls -l /home/vcap/readwrite")
+				stdout, _ = runInContainer(container, "touch /home/vcap/readwrite/bindmount-test")
+				stdout, _ = runInContainer(container, "ls -l /home/vcap/readwrite")
 				Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
 				runInVagrant("sudo rm -f /var/bindmount-test")
