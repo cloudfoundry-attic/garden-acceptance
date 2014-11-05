@@ -16,10 +16,6 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-func uniqueHandle() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
-
 var lsProcessSpec = api.ProcessSpec{Path: "ls"}
 var silentProcessIO = api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
 
@@ -157,7 +153,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		Describe("Bugs around the container lifecycle (#77768828)", func() {
 			It("should support deleting a container after an errant delete", func() {
-				handle := uniqueHandle()
+				handle := fmt.Sprintf("%d", time.Now().UnixNano())
+
 				err := gardenClient.Destroy(handle)
 				Ω(err).Should(HaveOccurred())
 
@@ -175,12 +172,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("should not allow creating an already existing container", func() {
-				handle := uniqueHandle()
-
-				_, err := gardenClient.Create(api.ContainerSpec{Handle: handle})
+				container, err := gardenClient.Create(api.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
-
-				_, err = gardenClient.Create(api.ContainerSpec{Handle: handle})
+				_, err = gardenClient.Create(api.ContainerSpec{Handle: container.Handle()})
 				Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
 			})
 		})
@@ -188,19 +182,15 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		Describe("mounting docker images", func() {
 			It("should mount an ubuntu docker image, just fine", func() {
 				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
-
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
-
 				process.Wait()
 			})
 
 			It("should mount a none-ubuntu docker image, just fine", func() {
 				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
-
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
-
 				process.Wait()
 			})
 		})
