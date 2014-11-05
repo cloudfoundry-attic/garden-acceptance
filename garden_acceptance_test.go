@@ -1,6 +1,7 @@
 package garden_acceptance_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -29,24 +30,31 @@ func recordedProcessIO(buffer *gbytes.Buffer) api.ProcessIO {
 	}
 }
 
-func runInVagrant(cmd string) string {
-	glrDir := os.Getenv("GARDEN_LINUX_RELEASE_DIR")
-	if glrDir == "" {
+func gardenLinuxReleaseDir() (s string) {
+	s = os.Getenv("GARDEN_LINUX_RELEASE_DIR")
+	if s == "" {
 		Fail("$GARDEN_LINUX_RELEASE_DIR must be set to the path of the garden-linux-release repo")
 	}
-	command := exec.Command("vagrant", "ssh", "-c", cmd)
-	command.Dir = glrDir
-	output, err := command.CombinedOutput()
-	if err != nil {
-		Fail(fmt.Sprintf("vagrant command %+v output unavailable: %s", command, err))
-	}
-	return string(output)
+	return
 }
 
-func runInsideContainer(container api.Container, cmd string) (output string) {
+func runInVagrant(cmd string) (string, string) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	command := exec.Command("vagrant", "ssh", "-c", cmd)
+	command.Dir = gardenLinuxReleaseDir()
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	command.Run()
+
+	return stdout.String(), stderr.String()
+}
+
+func runInsideContainer(container api.Container, cmd string) (string, string) {
 	info, _ := container.Info()
-	output = runInVagrant(fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd))
-	return
+	command := fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd)
+	return runInVagrant(command)
 }
 
 func destroyAllContainers(client client.Client) {
@@ -80,16 +88,16 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
 
-			output := runInsideContainer(container, "/sbin/ifconfig")
-			Ω(output).Should(ContainSubstring("inet addr:10.2.0.1"))
-			Ω(output).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
+			stdout, _ := runInsideContainer(container, "/sbin/ifconfig")
+			Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
+			Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
 
-			output = runInsideContainer(container, "/sbin/ping -c 1 -w 3 google.com")
-			Ω(output).Should(ContainSubstring("64 bytes from"))
-			Ω(output).ShouldNot(ContainSubstring("100% packet loss"))
+			stdout, _ = runInsideContainer(container, "/sbin/ping -c 1 -w 3 google.com")
+			Ω(stdout).Should(ContainSubstring("64 bytes from"))
+			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 
-			output = runInsideContainer(container, "/sbin/route | grep default")
-			Ω(output).Should(ContainSubstring("10.2.0.2"))
+			stdout, _ = runInsideContainer(container, "/sbin/route | grep default")
+			Ω(stdout).Should(ContainSubstring("10.2.0.2"))
 		})
 	})
 
@@ -205,37 +213,17 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					BindMounts: []api.BindMount{
 						api.BindMount{
 							SrcPath: "/var",
-							DstPath: "/home/vcap/my_var",
+							DstPath: "/home/vcap/readonly",
 							Mode:    api.BindMountModeRO},
 					},
 				})
 
 				runInVagrant("sudo touch /var/bindmount-test")
+				stdout, _ := runInsideContainer(container, "ls -l /home/vcap/readonly")
+				Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
-				buffer := gbytes.NewBuffer()
-				process, err := container.Run(api.ProcessSpec{
-					Path: "ls",
-					Args: []string{"-l", "/home/vcap/my_var"},
-				}, recordedProcessIO(buffer))
-
-				Ω(err).ShouldNot(HaveOccurred())
-
-				process.Wait()
-
-				Ω(buffer.Contents()).Should(ContainSubstring("bindmount-test"))
-
-				// Check mount really is read-only.
-				buffer = gbytes.NewBuffer()
-				process, err = container.Run(api.ProcessSpec{
-					Path: "rm",
-					Args: []string{"/home/vcap/my_var/bindmount-test"},
-				}, recordedProcessIO(buffer))
-
-				Ω(err).ShouldNot(HaveOccurred())
-				status, err := process.Wait()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(status).Should(Equal(1))
-				Ω(buffer.Contents()).Should(ContainSubstring("Read-only file system"))
+				stdout, stderr := runInsideContainer(container, "rm /home/vcap/readonly/bindmount-test")
+				Ω(stderr).Should(ContainSubstring("Read-only file system"))
 
 				runInVagrant("sudo rm -f /var/bindmount-test")
 			})
@@ -245,35 +233,21 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					BindMounts: []api.BindMount{
 						api.BindMount{
 							SrcPath: "/home/vcap",
-							DstPath: "/home/vcap/vcaphome",
+							DstPath: "/home/vcap/readwrite",
 							Mode:    api.BindMountModeRW,
 							Origin:  api.BindMountOriginContainer,
 						},
 					},
 				})
 
-				// Can we write to it?
-				buffer := gbytes.NewBuffer()
-				process, err := container.Run(api.ProcessSpec{
-					Path: "touch",
-					Args: []string{"/home/vcap/vcaphome/bindmount-rw-test"},
-				}, recordedProcessIO(buffer))
+				stdout, _ := runInsideContainer(container, "ls -l /home/vcap/readwrite")
+				Ω(stdout).ShouldNot(ContainSubstring("bindmount-test"))
 
-				Ω(err).ShouldNot(HaveOccurred())
+				stdout, _ = runInsideContainer(container, "touch /home/vcap/readwrite/bindmount-test")
+				stdout, _ = runInsideContainer(container, "ls -l /home/vcap/readwrite")
+				Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
-				process.Wait()
-
-				buffer = gbytes.NewBuffer()
-				process, err = container.Run(api.ProcessSpec{
-					Path: "ls",
-					Args: []string{"-l", "/home/vcap"},
-				}, recordedProcessIO(buffer))
-
-				Ω(err).ShouldNot(HaveOccurred())
-
-				process.Wait()
-
-				Ω(buffer.Contents()).Should(ContainSubstring("bindmount-rw-test"))
+				runInVagrant("sudo rm -f /var/bindmount-test")
 			})
 		})
 	})
