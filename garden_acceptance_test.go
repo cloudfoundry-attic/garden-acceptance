@@ -55,16 +55,19 @@ func runInContainer(container api.Container, cmd string) (string, string) {
 
 func destroyAllContainers(client client.Client) {
 	containers, err := client.Containers(nil)
-	Ω(err).ShouldNot(HaveOccurred())
+	Ω(err).ShouldNot(HaveOccurred(), "Error while listing containers")
 
 	for _, container := range containers {
-		client.Destroy(container.Handle())
+		err = client.Destroy(container.Handle())
+		Ω(err).ShouldNot(HaveOccurred(), fmt.Sprintf("Error while destroying container %+v", container.Handle()))
 	}
 }
 
 func createContainer(client api.Client, spec api.ContainerSpec) (container api.Container) {
 	container, err := client.Create(spec)
-	Ω(err).ShouldNot(HaveOccurred())
+	Ω(err).ShouldNot(
+		HaveOccurred(),
+		fmt.Sprintf("Error while creating container with spec: %+v", spec))
 	return
 }
 
