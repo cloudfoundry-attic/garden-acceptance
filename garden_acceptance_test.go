@@ -98,6 +98,49 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			stdout, _ = runInContainer(container, "/sbin/route | grep default")
 			Ω(stdout).Should(ContainSubstring("10.2.0.2"))
 		})
+
+		It("allows containers to talk to each other (#75464982)", func() {
+			container := createContainer(gardenClient, api.ContainerSpec{
+				Network:    "10.2.0.1/24",
+				RootFSPath: "docker:///onsi/grace-busybox",
+			})
+
+			_ = createContainer(gardenClient, api.ContainerSpec{
+				Network:    "10.2.0.2/24",
+				RootFSPath: "docker:///onsi/grace-busybox",
+			})
+
+			stdout, _ := runInContainer(container, "/sbin/ping -c 1 -w 3 10.2.0.2")
+			Ω(stdout).Should(ContainSubstring("64 bytes from"))
+			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		})
+	})
+
+	Describe("running commands", func() {
+		It("allows the setting of the user id (#82838924)", func() {
+			container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-acceptance"})
+
+			stdout, _ := runInContainer(container, "cat /etc/passwd")
+			Ω(stdout).Should(ContainSubstring("foo"))
+
+			buffer := gbytes.NewBuffer()
+			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
+			Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
+
+			buffer = gbytes.NewBuffer()
+			process, err = container.Run(api.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
+			Ω(buffer.Contents()).Should(ContainSubstring("root"))
+
+			buffer = gbytes.NewBuffer()
+			process, err = container.Run(api.ProcessSpec{Path: "whoami", User: "foo", Privileged: false}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
+			Ω(buffer.Contents()).Should(ContainSubstring("foo"))
+		})
 	})
 
 	Describe("things that now work", func() {
