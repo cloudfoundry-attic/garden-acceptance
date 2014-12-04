@@ -118,10 +118,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("running commands", func() {
 		It("allows the setting of the user id (#82838924)", func() {
-			container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-acceptance"})
+			container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-busybox"})
 
 			stdout, _ := runInContainer(container, "cat /etc/passwd")
-			Ω(stdout).Should(ContainSubstring("foo"))
+			Ω(stdout).Should(ContainSubstring("anotheruser"))
 
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
@@ -136,10 +136,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(buffer.Contents()).Should(ContainSubstring("root"))
 
 			buffer = gbytes.NewBuffer()
-			process, err = container.Run(api.ProcessSpec{Path: "whoami", User: "foo", Privileged: false}, recordedProcessIO(buffer))
+			process, err = container.Run(api.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
 			process.Wait()
-			Ω(buffer.Contents()).Should(ContainSubstring("foo"))
+			Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
 		})
 	})
 
