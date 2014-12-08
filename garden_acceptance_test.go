@@ -75,9 +75,58 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	var gardenClient client.Client
 
 	BeforeEach(func() {
-		conn := connection.New("tcp", "127.0.0.1:7777")
-		gardenClient = client.New(conn)
+		gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
 		destroyAllContainers(gardenClient)
+	})
+
+	Describe("running commands", func() {
+		var container api.Container
+
+		BeforeEach(func() {
+			container = createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-busybox"})
+		})
+
+		It("can be run as root, priviledged", func() {
+			buffer := gbytes.NewBuffer()
+			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
+			Ω(buffer.Contents()).Should(ContainSubstring("root"))
+		})
+
+		It("can be run as fake root, unpriviledged", func() {
+			buffer := gbytes.NewBuffer()
+			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
+			Ω(buffer.Contents()).Should(ContainSubstring("root"))
+
+			stderr := gbytes.NewBuffer()
+			recorder := api.ProcessIO{Stdout: GinkgoWriter, Stderr: io.MultiWriter(stderr, GinkgoWriter)}
+			process, err = container.Run(api.ProcessSpec{Path: "cat", Args: []string{"/proc/vmallocinfo"}, User: "root", Privileged: false}, recorder)
+			returnCode, _ := process.Wait()
+			Ω(stderr.Contents()).Should(ContainSubstring("Permission denied"), "Stderr")
+			Ω(returnCode).ShouldNot(Equal(0))
+		})
+
+		It("defaults to running as vcap when unpriviledged", func() {
+			buffer := gbytes.NewBuffer()
+			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
+			Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
+		})
+
+		PIt("can run as an arbitrary user (#82838924)", func() {
+			stdout, _ := runInContainer(container, "cat /etc/passwd")
+			Ω(stdout).Should(ContainSubstring("anotheruser"))
+
+			buffer := gbytes.NewBuffer()
+			process, err := container.Run(api.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
+			Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
+		})
 	})
 
 	Describe("Networking", func() {
@@ -113,33 +162,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			stdout, _ := runInContainer(container, "/sbin/ping -c 1 -w 3 10.2.0.2")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
-		})
-	})
-
-	Describe("running commands", func() {
-		It("allows the setting of the user id (#82838924)", func() {
-			container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-busybox"})
-
-			stdout, _ := runInContainer(container, "cat /etc/passwd")
-			Ω(stdout).Should(ContainSubstring("anotheruser"))
-
-			buffer := gbytes.NewBuffer()
-			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
-			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
-			Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
-
-			buffer = gbytes.NewBuffer()
-			process, err = container.Run(api.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
-			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
-			Ω(buffer.Contents()).Should(ContainSubstring("root"))
-
-			buffer = gbytes.NewBuffer()
-			process, err = container.Run(api.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
-			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
-			Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
 		})
 	})
 
