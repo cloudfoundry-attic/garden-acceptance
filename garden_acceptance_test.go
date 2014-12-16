@@ -130,7 +130,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Networking", func() {
-		It("should respect network option to set specific ip for a container (#75464982)", func() {
+		It("respects network option to set specific ip for a container (#75464982)", func() {
 			container := createContainer(gardenClient, api.ContainerSpec{
 				Network:    "10.2.0.0/30",
 				RootFSPath: "docker:///onsi/grace-busybox",
@@ -140,7 +140,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
 			Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
 
-			stdout, _ = runInContainer(container, "/sbin/ping -c 1 -w 3 google.com")
+			stdout, _ = runInContainer(container, "/sbin/ping -c 1 -w 3 8.8.8.8")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 
@@ -163,10 +163,28 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
+
+		It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
+			container1 := createContainer(gardenClient, api.ContainerSpec{
+				Network:    "10.2.0.1/24",
+				RootFSPath: "docker:///onsi/grace-busybox",
+			})
+
+			container2 := createContainer(gardenClient, api.ContainerSpec{
+				Network:    "10.2.0.2/24",
+				RootFSPath: "docker:///onsi/grace-busybox",
+			})
+
+			gardenClient.Destroy(container1.Handle())
+
+			stdout, _ := runInContainer(container2, "/sbin/ping -c 1 -w 3 8.8.8.8")
+			Ω(stdout).Should(ContainSubstring("64 bytes from"))
+			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		})
 	})
 
 	Describe("things that now work", func() {
-		It("should fail when attempting to delete a container twice (#76616270)", func() {
+		It("fails when attempting to delete a container twice (#76616270)", func() {
 			container := createContainer(gardenClient, api.ContainerSpec{})
 
 			var errors = make(chan error)
@@ -185,7 +203,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(results).Should(ConsistOf(BeNil(), HaveOccurred()))
 		})
 
-		It("should support setting environment variables on the container (#77303456)", func() {
+		It("supports setting environment variables on the container (#77303456)", func() {
 			container := createContainer(gardenClient, api.ContainerSpec{
 				Env: []string{
 					"ROOT_ENV=A",
@@ -214,13 +232,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
 		})
 
-		It("should fail when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
+		It("fails when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
 			_, err := gardenClient.Create(api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
 			Ω(err).Should(HaveOccurred())
 		})
 
 		Describe("Bugs around the container lifecycle (#77768828)", func() {
-			It("should support deleting a container after an errant delete", func() {
+			It("supports deleting a container after an errant delete", func() {
 				handle := fmt.Sprintf("%d", time.Now().UnixNano())
 
 				err := gardenClient.Destroy(handle)
@@ -239,7 +257,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(err).Should(HaveOccurred())
 			})
 
-			It("should not allow creating an already existing container", func() {
+			It("does not allow creating an already existing container", func() {
 				container, err := gardenClient.Create(api.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
 				_, err = gardenClient.Create(api.ContainerSpec{Handle: container.Handle()})
@@ -248,14 +266,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		Describe("mounting docker images", func() {
-			It("should mount an ubuntu docker image, just fine", func() {
+			It("mounts an ubuntu docker image, just fine", func() {
 				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
 				process.Wait()
 			})
 
-			It("should mount a none-ubuntu docker image, just fine", func() {
+			It("mounts a none-ubuntu docker image, just fine", func() {
 				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
@@ -264,7 +282,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		Describe("BindMounts", func() {
-			It("should mount a read-only BindMount (#75464648)", func() {
+			It("mounts a read-only BindMount (#75464648)", func() {
 				runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
 
 				container := createContainer(gardenClient, api.ContainerSpec{
@@ -286,7 +304,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				runInVagrant("sudo rm -f /var/bindmount-test")
 			})
 
-			It("should mount a read/write BindMount (#75464648)", func() {
+			It("mounts a read/write BindMount (#75464648)", func() {
 				container := createContainer(gardenClient, api.ContainerSpec{
 					BindMounts: []api.BindMount{
 						api.BindMount{
