@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
+	"runtime"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/api"
@@ -32,6 +34,11 @@ func gardenLinuxReleaseDir() (s string) {
 		Fail("$GARDEN_LINUX_RELEASE_DIR must be set to the path of the garden-linux-release repo")
 	}
 	return
+}
+
+func myDir() (s string) {
+	_, filename, _, _ := runtime.Caller(1)
+	return path.Dir(filename)
 }
 
 func runInVagrant(cmd string) (string, string) {
@@ -71,12 +78,80 @@ func createContainer(client api.Client, spec api.ContainerSpec) (container api.C
 	return
 }
 
+func installNestableRootImage() {
+	err := os.Link(path.Join(myDir(), "nestable_rootfs.tgz"), path.Join(gardenLinuxReleaseDir(), "nestable_rootfs.tgz"))
+	Ω(err).ShouldNot(HaveOccurred())
+	_, stderr := runInVagrant("sudo mkdir -p /home/vcap/rootfs && sudo tar -xzf /vagrant/nestable_rootfs.tgz -C /home/vcap/rootfs")
+	Ω(stderr).Should(Equal(""))
+}
+
+func removeNestableRootImage() {
+	err := os.Remove(path.Join(gardenLinuxReleaseDir(), "nestable_rootfs.tgz"))
+	Ω(err).ShouldNot(HaveOccurred())
+	_, stderr := runInVagrant("sudo rm -rf /home/vcap/rootfs")
+	Ω(stderr).Should(Equal(""))
+}
+
 var _ = Describe("Garden Acceptance Tests", func() {
+	BeforeSuite(func() { installNestableRootImage() })
+	AfterSuite(func() { removeNestableRootImage() })
+
 	var gardenClient client.Client
 
 	BeforeEach(func() {
 		gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
 		destroyAllContainers(gardenClient)
+	})
+
+	Describe("when garden is running in a container,", func() {
+		var outer_container api.Container
+		nestedServerOutput := gbytes.NewBuffer()
+
+		BeforeEach(func() {
+			outer_container = createContainer(gardenClient, api.ContainerSpec{
+				RootFSPath: "/home/vcap/rootfs",
+				Privileged: true,
+				BindMounts: []api.BindMount{
+					{SrcPath: "/var/vcap/packages/garden-linux/bin", DstPath: "/home/vcap/bin/", Mode: api.BindMountModeRO},
+					{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin", DstPath: "/home/vcap/binpath/bin", Mode: api.BindMountModeRO},
+					{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton", DstPath: "/home/vcap/binpath/skeleton", Mode: api.BindMountModeRO},
+					{SrcPath: "/var/vcap/packages/busybox", DstPath: "/home/vcap/rootfs", Mode: api.BindMountModeRO},
+				},
+			})
+
+			_, err := outer_container.Run(api.ProcessSpec{
+				Path: "sh",
+				User: "root",
+				Dir:  "/home/vcap",
+				Args: []string{
+					"-c",
+					`mkdir -p /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
+					./bin/garden-linux \
+						-bin /home/vcap/binpath/bin \
+						-rootfs /home/vcap/rootfs \
+						-depot /tmp/containers \
+						-overlays /tmp/overlays \
+						-snapshots /tmp/snapshots \
+						-graph /tmp/graph \
+						-disableQuotas \
+						-listenNetwork tcp \
+						-listenAddr 0.0.0.0:7778`,
+				},
+			}, recordedProcessIO(nestedServerOutput))
+			Ω(err).ShouldNot(HaveOccurred(), "Error while running nested garden")
+			Eventually(nestedServerOutput).Should(gbytes.Say("garden-linux.started"))
+		})
+
+		It("can run a nested container", func() {
+			info, err := outer_container.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			stdout, stderr := runInVagrant(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
+
+			Ω(stderr).Should(Equal(""), "Curl STDERR")
+			Ω(stdout).Should(HavePrefix("{\"handle\":"), "Curl STDOUT")
+			Ω(gardenClient.Destroy(outer_container.Handle())).Should(Succeed())
+		})
 	})
 
 	Describe("running commands", func() {
