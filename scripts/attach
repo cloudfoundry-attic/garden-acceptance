@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -e
+
+[ -z $DEBUG ] || set -x
+
+depot_path=$(./scripts/get containers/$1/info | jq .container_path)
+cd ~/workspace/garden-linux-release
+vagrant ssh -c "cd $depot_path && sudo ./bin/wsh"

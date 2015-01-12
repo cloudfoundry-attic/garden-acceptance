@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+
+curl -sSH "Content-Type: application/json" -XDELETE http://127.0.0.1:7777/$1 | jq "."
+
+

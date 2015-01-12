@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+[ -z $DEBUG ] || set -x
+
+curl -sSH "Content-Type: application/json" -XPOST http://127.0.0.1:7777/$1 -d "$2" | jq '.'
+
