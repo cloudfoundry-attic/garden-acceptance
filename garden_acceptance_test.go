@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	. "github.com/onsi/ginkgo"
@@ -18,11 +18,11 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var lsProcessSpec = api.ProcessSpec{Path: "ls"}
-var silentProcessIO = api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
+var lsProcessSpec = garden.ProcessSpec{Path: "ls"}
+var silentProcessIO = garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
 
-func recordedProcessIO(buffer *gbytes.Buffer) api.ProcessIO {
-	return api.ProcessIO{
+func recordedProcessIO(buffer *gbytes.Buffer) garden.ProcessIO {
+	return garden.ProcessIO{
 		Stdout: io.MultiWriter(buffer, GinkgoWriter),
 		Stderr: io.MultiWriter(buffer, GinkgoWriter),
 	}
@@ -54,7 +54,7 @@ func runInVagrant(cmd string) (string, string) {
 	return stdout.String(), stderr.String()
 }
 
-func runInContainer(container api.Container, cmd string) (string, string) {
+func runInContainer(container garden.Container, cmd string) (string, string) {
 	info, _ := container.Info()
 	command := fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd)
 	return runInVagrant(command)
@@ -70,7 +70,7 @@ func destroyAllContainers(client client.Client) {
 	}
 }
 
-func createContainer(client api.Client, spec api.ContainerSpec) (container api.Container) {
+func createContainer(client garden.Client, spec garden.ContainerSpec) (container garden.Container) {
 	container, err := client.Create(spec)
 	Ω(err).ShouldNot(
 		HaveOccurred(),
@@ -104,22 +104,22 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("when garden is running in a container,", func() {
-		var outer_container api.Container
+		var outer_container garden.Container
 		nestedServerOutput := gbytes.NewBuffer()
 
 		BeforeEach(func() {
-			outer_container = createContainer(gardenClient, api.ContainerSpec{
+			outer_container = createContainer(gardenClient, garden.ContainerSpec{
 				RootFSPath: "/home/vcap/rootfs",
 				Privileged: true,
-				BindMounts: []api.BindMount{
-					{SrcPath: "/var/vcap/packages/garden-linux/bin", DstPath: "/home/vcap/bin/", Mode: api.BindMountModeRO},
-					{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin", DstPath: "/home/vcap/binpath/bin", Mode: api.BindMountModeRO},
-					{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton", DstPath: "/home/vcap/binpath/skeleton", Mode: api.BindMountModeRO},
-					{SrcPath: "/var/vcap/packages/busybox", DstPath: "/home/vcap/rootfs", Mode: api.BindMountModeRO},
+				BindMounts: []garden.BindMount{
+					{SrcPath: "/var/vcap/packages/garden-linux/bin", DstPath: "/home/vcap/bin/", Mode: garden.BindMountModeRO},
+					{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin", DstPath: "/home/vcap/binpath/bin", Mode: garden.BindMountModeRO},
+					{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton", DstPath: "/home/vcap/binpath/skeleton", Mode: garden.BindMountModeRO},
+					{SrcPath: "/var/vcap/packages/busybox", DstPath: "/home/vcap/rootfs", Mode: garden.BindMountModeRO},
 				},
 			})
 
-			_, err := outer_container.Run(api.ProcessSpec{
+			_, err := outer_container.Run(garden.ProcessSpec{
 				Path: "sh",
 				User: "root",
 				Dir:  "/home/vcap",
@@ -142,7 +142,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Eventually(nestedServerOutput).Should(gbytes.Say("garden-linux.started"))
 		})
 
-		It("can run a nested container", func() {
+		It("can run a nested container (#83806940)", func() {
 			info, err := outer_container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -155,15 +155,15 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("running commands", func() {
-		var container api.Container
+		var container garden.Container
 
 		BeforeEach(func() {
-			container = createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-busybox"})
+			container = createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-busybox"})
 		})
 
 		It("can be run as root, priviledged", func() {
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
+			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
 			process.Wait()
 			Ω(buffer.Contents()).Should(ContainSubstring("root"))
@@ -171,14 +171,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		It("can be run as fake root, unpriviledged", func() {
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
+			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
 			process.Wait()
 			Ω(buffer.Contents()).Should(ContainSubstring("root"))
 
 			stderr := gbytes.NewBuffer()
-			recorder := api.ProcessIO{Stdout: GinkgoWriter, Stderr: io.MultiWriter(stderr, GinkgoWriter)}
-			process, err = container.Run(api.ProcessSpec{Path: "cat", Args: []string{"/proc/vmallocinfo"}, User: "root", Privileged: false}, recorder)
+			recorder := garden.ProcessIO{Stdout: GinkgoWriter, Stderr: io.MultiWriter(stderr, GinkgoWriter)}
+			process, err = container.Run(garden.ProcessSpec{Path: "cat", Args: []string{"/proc/vmallocinfo"}, User: "root", Privileged: false}, recorder)
 			returnCode, _ := process.Wait()
 			Ω(stderr.Contents()).Should(ContainSubstring("Permission denied"), "Stderr")
 			Ω(returnCode).ShouldNot(Equal(0))
@@ -186,7 +186,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		It("defaults to running as vcap when unpriviledged", func() {
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(api.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
+			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
 			process.Wait()
 			Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
@@ -197,16 +197,44 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(stdout).Should(ContainSubstring("anotheruser"))
 
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(api.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
+			process, err := container.Run(garden.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
 			process.Wait()
 			Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
+		})
+
+		It("can send TERM and KILL signals (#83231270)", func() {
+			run_buffer := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", `
+				  trap 'echo "TERM received"' SIGTERM
+					while true; do
+					  echo waiting
+					  sleep 1
+					done
+				`},
+			}, recordedProcessIO(run_buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process_buffer := gbytes.NewBuffer()
+			process, err = container.Attach(process.ID(), recordedProcessIO(process_buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is running")
+
+			Ω(process.Signal(garden.SignalTerminate)).Should(Succeed(), "Process sent the TERM signal")
+			Eventually(process_buffer, "2s").Should(gbytes.Say("TERM received"), "Process received the TERM signal")
+
+			Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
+			Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
+			Ω(process.Wait()).Should(Equal(255))
 		})
 	})
 
 	Describe("Networking", func() {
 		It("respects network option to set specific ip for a container (#75464982)", func() {
-			container := createContainer(gardenClient, api.ContainerSpec{
+			container := createContainer(gardenClient, garden.ContainerSpec{
 				Network:    "10.2.0.0/30",
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
@@ -224,12 +252,12 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("allows containers to talk to each other (#75464982)", func() {
-			container := createContainer(gardenClient, api.ContainerSpec{
+			container := createContainer(gardenClient, garden.ContainerSpec{
 				Network:    "10.2.0.1/24",
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
 
-			_ = createContainer(gardenClient, api.ContainerSpec{
+			_ = createContainer(gardenClient, garden.ContainerSpec{
 				Network:    "10.2.0.2/24",
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
@@ -240,12 +268,12 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
-			container1 := createContainer(gardenClient, api.ContainerSpec{
+			container1 := createContainer(gardenClient, garden.ContainerSpec{
 				Network:    "10.2.0.1/24",
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
 
-			container2 := createContainer(gardenClient, api.ContainerSpec{
+			container2 := createContainer(gardenClient, garden.ContainerSpec{
 				Network:    "10.2.0.2/24",
 				RootFSPath: "docker:///onsi/grace-busybox",
 			})
@@ -260,7 +288,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("things that now work", func() {
 		It("fails when attempting to delete a container twice (#76616270)", func() {
-			container := createContainer(gardenClient, api.ContainerSpec{})
+			container := createContainer(gardenClient, garden.ContainerSpec{})
 
 			var errors = make(chan error)
 			go func() {
@@ -279,7 +307,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("supports setting environment variables on the container (#77303456)", func() {
-			container := createContainer(gardenClient, api.ContainerSpec{
+			container := createContainer(gardenClient, garden.ContainerSpec{
 				Env: []string{
 					"ROOT_ENV=A",
 					"OVERWRITTEN_ENV=B",
@@ -288,7 +316,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "printenv"},
 				Env: []string{
@@ -308,7 +336,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("fails when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
-			_, err := gardenClient.Create(api.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
+			_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
 			Ω(err).Should(HaveOccurred())
 		})
 
@@ -319,7 +347,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				err := gardenClient.Destroy(handle)
 				Ω(err).Should(HaveOccurred())
 
-				_, err = gardenClient.Create(api.ContainerSpec{Handle: handle})
+				_, err = gardenClient.Create(garden.ContainerSpec{Handle: handle})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				_, err = gardenClient.Lookup(handle)
@@ -333,23 +361,23 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("does not allow creating an already existing container", func() {
-				container, err := gardenClient.Create(api.ContainerSpec{})
+				container, err := gardenClient.Create(garden.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
-				_, err = gardenClient.Create(api.ContainerSpec{Handle: container.Handle()})
+				_, err = gardenClient.Create(garden.ContainerSpec{Handle: container.Handle()})
 				Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
 			})
 		})
 
 		Describe("mounting docker images", func() {
 			It("mounts an ubuntu docker image, just fine", func() {
-				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
+				container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
 				process.Wait()
 			})
 
 			It("mounts a none-ubuntu docker image, just fine", func() {
-				container := createContainer(gardenClient, api.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
+				container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
 				process, err := container.Run(lsProcessSpec, silentProcessIO)
 				Ω(err).ShouldNot(HaveOccurred())
 				process.Wait()
@@ -360,12 +388,12 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			It("mounts a read-only BindMount (#75464648)", func() {
 				runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
 
-				container := createContainer(gardenClient, api.ContainerSpec{
-					BindMounts: []api.BindMount{
-						api.BindMount{
+				container := createContainer(gardenClient, garden.ContainerSpec{
+					BindMounts: []garden.BindMount{
+						garden.BindMount{
 							SrcPath: "/var",
 							DstPath: "/home/vcap/readonly",
-							Mode:    api.BindMountModeRO},
+							Mode:    garden.BindMountModeRO},
 					},
 				})
 
@@ -380,13 +408,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("mounts a read/write BindMount (#75464648)", func() {
-				container := createContainer(gardenClient, api.ContainerSpec{
-					BindMounts: []api.BindMount{
-						api.BindMount{
+				container := createContainer(gardenClient, garden.ContainerSpec{
+					BindMounts: []garden.BindMount{
+						garden.BindMount{
 							SrcPath: "/home/vcap",
 							DstPath: "/home/vcap/readwrite",
-							Mode:    api.BindMountModeRW,
-							Origin:  api.BindMountOriginContainer,
+							Mode:    garden.BindMountModeRW,
+							Origin:  garden.BindMountOriginContainer,
 						},
 					},
 				})
@@ -427,7 +455,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	// 			if err != nil {
 	// 				fmt.Println("CREATING CONTAINER")
 	//
-	// 				_, err = gardenClient.Create(api.ContainerSpec{
+	// 				_, err = gardenClient.Create(garden.ContainerSpec{
 	// 					Handle: handle,
 	// 					Env: []string{
 	// 						"ROOT_ENV=A",
@@ -443,7 +471,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	// 			container, err := gardenClient.Lookup(handle)
 	// 			Ω(err).ShouldNot(HaveOccurred())
 	// 			buffer := gbytes.NewBuffer()
-	// 			process, err := container.Run(api.ProcessSpec{
+	// 			process, err := container.Run(garden.ProcessSpec{
 	// 				Path: "bash",
 	// 				Args: []string{"-c", "printenv"},
 	// 				Env: []string{
