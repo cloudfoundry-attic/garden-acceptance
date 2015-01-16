@@ -18,7 +18,6 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var lsProcessSpec = garden.ProcessSpec{Path: "ls"}
 var silentProcessIO = garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
 
 func recordedProcessIO(buffer *gbytes.Buffer) garden.ProcessIO {
@@ -78,24 +77,25 @@ func createContainer(client garden.Client, spec garden.ContainerSpec) (container
 	return
 }
 
-func installNestableRootImage() {
-	err := os.Link(path.Join(myDir(), "nestable_rootfs.tgz"), path.Join(gardenLinuxReleaseDir(), "nestable_rootfs.tgz"))
+func installRootImage(path_to_tgz string, rootfs_name string) string {
+	err := os.Link(path_to_tgz,
+		path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz"))
 	Ω(err).ShouldNot(HaveOccurred())
-	_, stderr := runInVagrant("sudo mkdir -p /home/vcap/rootfs && sudo tar -xzf /vagrant/nestable_rootfs.tgz -C /home/vcap/rootfs")
+	rootfs_directory := "/home/vcap/" + rootfs_name
+
+	_, stderr := runInVagrant("sudo mkdir -p " + rootfs_directory + " && sudo tar -xzf /vagrant/" + rootfs_name + ".tgz -C " + rootfs_directory)
 	Ω(stderr).Should(Equal(""))
+	return rootfs_directory
 }
 
-func removeNestableRootImage() {
-	err := os.Remove(path.Join(gardenLinuxReleaseDir(), "nestable_rootfs.tgz"))
+func removeRootImage(rootfs_name string) {
+	err := os.Remove(path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz"))
 	Ω(err).ShouldNot(HaveOccurred())
-	_, stderr := runInVagrant("sudo rm -rf /home/vcap/rootfs")
+	_, stderr := runInVagrant("sudo rm -rf /home/vcap/" + rootfs_name)
 	Ω(stderr).Should(Equal(""))
 }
 
 var _ = Describe("Garden Acceptance Tests", func() {
-	BeforeSuite(func() { installNestableRootImage() })
-	AfterSuite(func() { removeNestableRootImage() })
-
 	var gardenClient client.Client
 
 	BeforeEach(func() {
@@ -107,9 +107,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		var outer_container garden.Container
 		nestedServerOutput := gbytes.NewBuffer()
 
+		AfterEach(func() { removeRootImage("nestable") })
+
 		BeforeEach(func() {
+			nested_rootfs_path := installRootImage(path.Join(myDir(), "nestable_rootfs.tgz"), "nestable")
+
 			outer_container = createContainer(gardenClient, garden.ContainerSpec{
-				RootFSPath: "/home/vcap/rootfs",
+				RootFSPath: nested_rootfs_path,
 				Privileged: true,
 				BindMounts: []garden.BindMount{
 					{SrcPath: "/var/vcap/packages/garden-linux/bin", DstPath: "/home/vcap/bin/", Mode: garden.BindMountModeRO},
@@ -179,9 +183,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			stderr := gbytes.NewBuffer()
 			recorder := garden.ProcessIO{Stdout: GinkgoWriter, Stderr: io.MultiWriter(stderr, GinkgoWriter)}
 			process, err = container.Run(garden.ProcessSpec{Path: "cat", Args: []string{"/proc/vmallocinfo"}, User: "root", Privileged: false}, recorder)
-			returnCode, _ := process.Wait()
+			Ω(process.Wait()).ShouldNot(Equal(0))
 			Ω(stderr.Contents()).Should(ContainSubstring("Permission denied"), "Stderr")
-			Ω(returnCode).ShouldNot(Equal(0))
 		})
 
 		It("defaults to running as vcap when unpriviledged", func() {
@@ -286,148 +289,196 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	Describe("things that now work", func() {
-		It("fails when attempting to delete a container twice (#76616270)", func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{})
+	It("fails when attempting to delete a container twice (#76616270)", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{})
 
-			var errors = make(chan error)
-			go func() {
-				errors <- gardenClient.Destroy(container.Handle())
-			}()
-			go func() {
-				errors <- gardenClient.Destroy(container.Handle())
-			}()
+		var errors = make(chan error)
+		go func() { errors <- gardenClient.Destroy(container.Handle()) }()
+		go func() { errors <- gardenClient.Destroy(container.Handle()) }()
 
-			results := []error{
-				<-errors,
-				<-errors,
-			}
+		results := []error{<-errors, <-errors}
 
-			Ω(results).Should(ConsistOf(BeNil(), HaveOccurred()))
+		Ω(results).Should(ConsistOf(BeNil(), HaveOccurred()))
+	})
+
+	It("supports setting environment variables on the container (#77303456)", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{
+			Env: []string{
+				"ROOT_ENV=A",
+				"OVERWRITTEN_ENV=B",
+				"HOME=/nowhere",
+			},
 		})
 
-		It("supports setting environment variables on the container (#77303456)", func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{
-				Env: []string{
-					"ROOT_ENV=A",
-					"OVERWRITTEN_ENV=B",
-					"HOME=/nowhere",
-				},
-			})
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			Path: "sh",
+			Args: []string{"-c", "printenv"},
+			Env: []string{
+				"OVERWRITTEN_ENV=C",
+			},
+		}, recordedProcessIO(buffer))
 
-			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", "printenv"},
-				Env: []string{
-					"OVERWRITTEN_ENV=C",
-				},
-			}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
 
+		process.Wait()
+
+		Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
+		Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
+		Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
+		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/nowhere"))
+		Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
+	})
+
+	It("fails when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
+		_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
+		Ω(err).Should(HaveOccurred())
+	})
+
+	Describe("Bugs around the container lifecycle (#77768828)", func() {
+		It("supports deleting a container after an errant delete", func() {
+			handle := fmt.Sprintf("%d", time.Now().UnixNano())
+
+			err := gardenClient.Destroy(handle)
+			Ω(err).Should(HaveOccurred())
+
+			_, err = gardenClient.Create(garden.ContainerSpec{Handle: handle})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			process.Wait()
+			_, err = gardenClient.Lookup(handle)
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
-			Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
-			Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
-			Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/nowhere"))
-			Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
-		})
+			err = gardenClient.Destroy(handle)
+			Ω(err).ShouldNot(HaveOccurred(), "Expected no error when attempting to destroy this container")
 
-		It("fails when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
-			_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
+			_, err = gardenClient.Lookup(handle)
 			Ω(err).Should(HaveOccurred())
 		})
 
-		Describe("Bugs around the container lifecycle (#77768828)", func() {
-			It("supports deleting a container after an errant delete", func() {
-				handle := fmt.Sprintf("%d", time.Now().UnixNano())
+		It("does not allow creating an already existing container", func() {
+			container, err := gardenClient.Create(garden.ContainerSpec{})
+			Ω(err).ShouldNot(HaveOccurred())
+			_, err = gardenClient.Create(garden.ContainerSpec{Handle: container.Handle()})
+			Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
+		})
+	})
 
-				err := gardenClient.Destroy(handle)
-				Ω(err).Should(HaveOccurred())
+	Describe("mounting docker images", func() {
+		var lsProcessSpec = garden.ProcessSpec{Path: "ls", Args: []string{"-l", "/"}}
 
-				_, err = gardenClient.Create(garden.ContainerSpec{Handle: handle})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				_, err = gardenClient.Lookup(handle)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				err = gardenClient.Destroy(handle)
-				Ω(err).ShouldNot(HaveOccurred(), "Expected no error when attempting to destroy this container")
-
-				_, err = gardenClient.Lookup(handle)
-				Ω(err).Should(HaveOccurred())
-			})
-
-			It("does not allow creating an already existing container", func() {
-				container, err := gardenClient.Create(garden.ContainerSpec{})
-				Ω(err).ShouldNot(HaveOccurred())
-				_, err = gardenClient.Create(garden.ContainerSpec{Handle: container.Handle()})
-				Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
-			})
+		It("mounts an ubuntu docker image, just fine", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
+			process, err := container.Run(lsProcessSpec, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
 		})
 
-		Describe("mounting docker images", func() {
-			It("mounts an ubuntu docker image, just fine", func() {
-				container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
-				process, err := container.Run(lsProcessSpec, silentProcessIO)
-				Ω(err).ShouldNot(HaveOccurred())
-				process.Wait()
-			})
-
-			It("mounts a none-ubuntu docker image, just fine", func() {
-				container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
-				process, err := container.Run(lsProcessSpec, silentProcessIO)
-				Ω(err).ShouldNot(HaveOccurred())
-				process.Wait()
-			})
+		It("mounts a none-ubuntu docker image, just fine", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
+			process, err := container.Run(lsProcessSpec, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+			process.Wait()
 		})
 
-		Describe("BindMounts", func() {
-			It("mounts a read-only BindMount (#75464648)", func() {
-				runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
+		It("creates directories for volumes listed in VOLUME (#85482656)", func() {
+			buffer := gbytes.NewBuffer()
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/with-volume"})
+			process, err := container.Run(lsProcessSpec, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0))
+			Ω(buffer).Should(gbytes.Say("foo"))
+		})
+	})
 
-				container := createContainer(gardenClient, garden.ContainerSpec{
-					BindMounts: []garden.BindMount{
-						garden.BindMount{
-							SrcPath: "/var",
-							DstPath: "/home/vcap/readonly",
-							Mode:    garden.BindMountModeRO},
-					},
-				})
+	Describe("Fusefs", func() {
+		var fusefs_rootfs_path string
+		var container garden.Container
 
-				runInVagrant("sudo touch /var/bindmount-test")
-				stdout, _ := runInContainer(container, "ls -l /home/vcap/readonly")
-				Ω(stdout).Should(ContainSubstring("bindmount-test"))
+		AfterEach(func() {
+			destroyAllContainers(gardenClient)
+			removeRootImage("fusefs")
+		})
 
-				stdout, stderr := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
-				Ω(stderr).Should(ContainSubstring("Read-only file system"))
+		BeforeEach(func() {
+			fusefs_rootfs_path = installRootImage(path.Join(myDir(), "fusefs_rootfs.tgz"), "fusefs")
+		})
 
-				runInVagrant("sudo rm -f /var/bindmount-test")
+		It("can mount the fusefs", func() {
+			container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: fusefs_rootfs_path})
+			mountpoint := "/tmp/fuse-test"
+			output := gbytes.NewBuffer()
+
+			process, err := container.Run(garden.ProcessSpec{Path: "mkdir", Args: []string{"-p", mountpoint}}, recordedProcessIO(output))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0), "Could not make temporary directory!")
+
+			output = gbytes.NewBuffer()
+			process, err = container.Run(garden.ProcessSpec{Privileged: true, Path: "/usr/bin/hellofs", Args: []string{mountpoint}}, recordedProcessIO(output))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0), "Failed to mount hello filesystem.")
+
+			output = gbytes.NewBuffer()
+			process, err = container.Run(garden.ProcessSpec{Privileged: true, Path: "cat", Args: []string{mountpoint + "/hello"}}, recordedProcessIO(output))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0), "Failed to find hello file.")
+			Ω(output).Should(gbytes.Say("Hello World!"))
+
+			output = gbytes.NewBuffer()
+			process, err = container.Run(garden.ProcessSpec{Privileged: true, Path: "fusermount", Args: []string{"-u", mountpoint}}, recordedProcessIO(output))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0), "Failed to unmount user filesystem.")
+
+			output = gbytes.NewBuffer()
+			process, err = container.Run(garden.ProcessSpec{Privileged: true, Path: "ls", Args: []string{mountpoint}}, recordedProcessIO(output))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0))
+			Ω(output).ShouldNot(gbytes.Say("hello"), "Fuse filesystem appears still to be visible after being unmounted.")
+		})
+	})
+
+	Describe("BindMounts", func() {
+		It("mounts a read-only BindMount (#75464648)", func() {
+			runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
+
+			container := createContainer(gardenClient, garden.ContainerSpec{
+				BindMounts: []garden.BindMount{
+					garden.BindMount{
+						SrcPath: "/var",
+						DstPath: "/home/vcap/readonly",
+						Mode:    garden.BindMountModeRO},
+				},
 			})
 
-			It("mounts a read/write BindMount (#75464648)", func() {
-				container := createContainer(gardenClient, garden.ContainerSpec{
-					BindMounts: []garden.BindMount{
-						garden.BindMount{
-							SrcPath: "/home/vcap",
-							DstPath: "/home/vcap/readwrite",
-							Mode:    garden.BindMountModeRW,
-							Origin:  garden.BindMountOriginContainer,
-						},
+			runInVagrant("sudo touch /var/bindmount-test")
+			stdout, _ := runInContainer(container, "ls -l /home/vcap/readonly")
+			Ω(stdout).Should(ContainSubstring("bindmount-test"))
+
+			stdout, stderr := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
+			Ω(stderr).Should(ContainSubstring("Read-only file system"))
+
+			runInVagrant("sudo rm -f /var/bindmount-test")
+		})
+
+		It("mounts a read/write BindMount (#75464648)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{
+				BindMounts: []garden.BindMount{
+					garden.BindMount{
+						SrcPath: "/home/vcap",
+						DstPath: "/home/vcap/readwrite",
+						Mode:    garden.BindMountModeRW,
+						Origin:  garden.BindMountOriginContainer,
 					},
-				})
-
-				stdout, _ := runInContainer(container, "ls -l /home/vcap/readwrite")
-				Ω(stdout).ShouldNot(ContainSubstring("bindmount-test"))
-
-				stdout, _ = runInContainer(container, "touch /home/vcap/readwrite/bindmount-test")
-				stdout, _ = runInContainer(container, "ls -l /home/vcap/readwrite")
-				Ω(stdout).Should(ContainSubstring("bindmount-test"))
-
-				runInVagrant("sudo rm -f /var/bindmount-test")
+				},
 			})
+
+			stdout, _ := runInContainer(container, "ls -l /home/vcap/readwrite")
+			Ω(stdout).ShouldNot(ContainSubstring("bindmount-test"))
+
+			stdout, _ = runInContainer(container, "touch /home/vcap/readwrite/bindmount-test")
+			stdout, _ = runInContainer(container, "ls -l /home/vcap/readwrite")
+			Ω(stdout).Should(ContainSubstring("bindmount-test"))
+
+			runInVagrant("sudo rm -f /var/bindmount-test")
 		})
 	})
 
