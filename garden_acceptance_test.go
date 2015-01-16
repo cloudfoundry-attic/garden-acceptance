@@ -169,7 +169,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
+			Ω(process.Wait()).Should(Equal(0))
 			Ω(buffer.Contents()).Should(ContainSubstring("root"))
 		})
 
@@ -177,7 +177,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
+			Ω(process.Wait()).Should(Equal(0))
 			Ω(buffer.Contents()).Should(ContainSubstring("root"))
 
 			stderr := gbytes.NewBuffer()
@@ -191,7 +191,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
+			Ω(process.Wait()).Should(Equal(0))
 			Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
 		})
 
@@ -202,7 +202,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
+			Ω(process.Wait()).Should(Equal(0))
 			Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
 		})
 
@@ -321,7 +321,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		Ω(err).ShouldNot(HaveOccurred())
 
-		process.Wait()
+		Ω(process.Wait()).Should(Equal(0))
 
 		Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
 		Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
@@ -370,14 +370,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
 			process, err := container.Run(lsProcessSpec, silentProcessIO)
 			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
+			Ω(process.Wait()).Should(Equal(0))
 		})
 
 		It("mounts a none-ubuntu docker image, just fine", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
 			process, err := container.Run(lsProcessSpec, silentProcessIO)
 			Ω(err).ShouldNot(HaveOccurred())
-			process.Wait()
+			Ω(process.Wait()).Should(Equal(0))
 		})
 
 		It("creates directories for volumes listed in VOLUME (#85482656)", func() {
