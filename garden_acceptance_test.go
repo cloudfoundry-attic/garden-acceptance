@@ -78,8 +78,7 @@ func createContainer(client garden.Client, spec garden.ContainerSpec) (container
 }
 
 func installRootImage(path_to_tgz string, rootfs_name string) string {
-	err := os.Link(path_to_tgz,
-		path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz"))
+	err := os.Link("rootfs_images"+path_to_tgz, path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz"))
 	Ω(err).ShouldNot(HaveOccurred())
 	rootfs_directory := "/home/vcap/" + rootfs_name
 
