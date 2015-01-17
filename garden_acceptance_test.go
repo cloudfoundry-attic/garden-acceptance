@@ -289,16 +289,23 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	It("fails when attempting to delete a container twice (#76616270)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{})
+	Describe("Destroy", func() {
+		It("fails when attempting to delete a container twice (#76616270)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
 
-		var errors = make(chan error)
-		go func() { errors <- gardenClient.Destroy(container.Handle()) }()
-		go func() { errors <- gardenClient.Destroy(container.Handle()) }()
+			var errors = make(chan error)
+			go func() { errors <- gardenClient.Destroy(container.Handle()) }()
+			go func() { errors <- gardenClient.Destroy(container.Handle()) }()
 
-		results := []error{<-errors, <-errors}
+			results := []error{<-errors, <-errors}
 
-		Ω(results).Should(ConsistOf(BeNil(), HaveOccurred()))
+			Ω(results).Should(ConsistOf(BeNil(), HaveOccurred()))
+		})
+
+		It("fails when attempting to delete a non-existant container (#86044470)", func() {
+			err := gardenClient.Destroy("asdf")
+			Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "asdf"}))
+		})
 	})
 
 	It("supports setting environment variables on the container (#77303456)", func() {
