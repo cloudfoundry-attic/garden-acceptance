@@ -77,8 +77,10 @@ func createContainer(client garden.Client, spec garden.ContainerSpec) (container
 	return
 }
 
-func installRootImage(path_to_tgz string, rootfs_name string) string {
-	err := os.Link("rootfs_images"+path_to_tgz, path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz"))
+func installRootImage(rootfs_name string) string {
+	local_path := path.Join(myDir(), "rootfs_images", rootfs_name+".tgz")
+	vagrant_path := path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz")
+	err := os.Link(local_path, vagrant_path)
 	Ω(err).ShouldNot(HaveOccurred())
 	rootfs_directory := "/home/vcap/" + rootfs_name
 
@@ -109,7 +111,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		AfterEach(func() { removeRootImage("nestable") })
 
 		BeforeEach(func() {
-			nested_rootfs_path := installRootImage(path.Join(myDir(), "nestable_rootfs.tgz"), "nestable")
+			nested_rootfs_path := installRootImage("nestable")
 
 			outer_container = createContainer(gardenClient, garden.ContainerSpec{
 				RootFSPath: nested_rootfs_path,
@@ -160,77 +162,191 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	Describe("running commands", func() {
 		var container garden.Container
 
-		BeforeEach(func() {
-			container = createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-busybox"})
+		Context("with a privileged container", func() {
+			BeforeEach(func() {
+				container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
+			})
+
+			It("can set rlimits", func() {
+				var nofile uint64 = 1234
+				output := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					Path:   "sh",
+					Args:   []string{"-c", "ulimit -n"},
+					Limits: garden.ResourceLimits{Nofile: &nofile},
+				}, recordedProcessIO(output))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(output).Should(gbytes.Say("1234"))
+				Ω(process.Wait()).Should(Equal(0))
+			})
+
+			Context("and a full set of executables", func() {
+				var process garden.Process
+				var err error
+				var foo string
+
+				BeforeEach(func() {
+					directories := []string{
+						"/usr/local/sbin/",
+						"/usr/local/bin/",
+						"/usr/sbin/",
+						"/usr/bin/",
+						"/sbin/",
+						"/bin/",
+					}
+
+					for _, dir := range directories {
+						foo = dir + "foo"
+						process, err = container.Run(garden.ProcessSpec{Path: "mkdir", Privileged: true, Args: []string{"-p", dir}}, silentProcessIO)
+						Ω(err).ShouldNot(HaveOccurred(), "Error making "+dir)
+
+						process, err = container.Run(garden.ProcessSpec{Path: "sh", Privileged: true, Args: []string{"-c", "echo 'readlink -f $0' > " + foo}}, silentProcessIO)
+						Ω(err).ShouldNot(HaveOccurred(), "Error running echo on "+foo)
+						Ω(process.Wait()).Should(Equal(0), "echo exited with bad error code.")
+
+						process, err = container.Run(garden.ProcessSpec{Path: "chmod", Privileged: true, Args: []string{"+x", foo}}, silentProcessIO)
+						Ω(err).ShouldNot(HaveOccurred(), "Error running chmod on "+foo)
+						Ω(process.Wait()).Should(Equal(0), "chmod +x "+foo+" exited with bad error code.")
+					}
+				})
+
+				It("sets the path correctly, when run privileged", func() {
+					var process garden.Process
+					var err error
+					var foo string
+					directories := []string{
+						"/usr/local/sbin/",
+						"/usr/local/bin/",
+						"/usr/sbin/",
+						"/usr/bin/",
+						"/sbin/",
+						"/bin/",
+					}
+					// run them
+					for _, dir := range directories {
+						foo = dir + "foo"
+						buffer := gbytes.NewBuffer()
+						process, err = container.Run(garden.ProcessSpec{Path: "foo", Privileged: true}, recordedProcessIO(buffer))
+						Ω(err).ShouldNot(HaveOccurred(), "Error running foo.")
+						Ω(process.Wait()).Should(Equal(0), "Foo exited with bad error code.")
+						Ω(string(buffer.Contents())).Should(Equal(foo + "\n"))
+
+						process, err = container.Run(garden.ProcessSpec{Path: "rm", Privileged: true, Args: []string{foo}}, silentProcessIO)
+						Ω(err).ShouldNot(HaveOccurred(), "Error running removing "+foo)
+						Ω(process.Wait()).Should(Equal(0), "rm "+foo+" exited with bad error code.")
+					}
+				})
+
+				It("sets the path correctly, when run unprivileged", func() {
+					var process garden.Process
+					var err error
+					var foo string
+					directories := []string{
+						"/usr/local/bin/",
+						"/usr/bin/",
+						"/bin/",
+					}
+					// run them
+					for _, dir := range directories {
+						foo = dir + "foo"
+						buffer := gbytes.NewBuffer()
+						process, err = container.Run(garden.ProcessSpec{Path: "foo", Privileged: false}, recordedProcessIO(buffer))
+						Ω(err).ShouldNot(HaveOccurred(), "Error running foo.")
+						Ω(process.Wait()).Should(Equal(0), "Foo exited with bad error code.")
+						Ω(string(buffer.Contents())).Should(Equal(foo + "\n"))
+
+						process, err = container.Run(garden.ProcessSpec{Path: "rm", Privileged: true, Args: []string{foo}}, silentProcessIO)
+						Ω(err).ShouldNot(HaveOccurred(), "Error running removing "+foo)
+						Ω(process.Wait()).Should(Equal(0), "rm "+foo+" exited with bad error code.")
+					}
+				})
+			})
+
 		})
 
-		It("can be run as root, priviledged", func() {
-			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(process.Wait()).Should(Equal(0))
-			Ω(buffer.Contents()).Should(ContainSubstring("root"))
-		})
+		Context("with an unprivileged container", func() {
+			BeforeEach(func() {
+				container = createContainer(gardenClient, garden.ContainerSpec{Privileged: false})
+			})
 
-		It("can be run as fake root, unpriviledged", func() {
-			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(process.Wait()).Should(Equal(0))
-			Ω(buffer.Contents()).Should(ContainSubstring("root"))
+			It("defaults to running as vcap when unpriviledged", func() {
+				buffer := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Wait()).Should(Equal(0))
+				Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
+			})
 
-			stderr := gbytes.NewBuffer()
-			recorder := garden.ProcessIO{Stdout: GinkgoWriter, Stderr: io.MultiWriter(stderr, GinkgoWriter)}
-			process, err = container.Run(garden.ProcessSpec{Path: "cat", Args: []string{"/proc/vmallocinfo"}, User: "root", Privileged: false}, recorder)
-			Ω(process.Wait()).ShouldNot(Equal(0))
-			Ω(stderr.Contents()).Should(ContainSubstring("Permission denied"), "Stderr")
-		})
+			PIt("can run as an arbitrary user (#82838924)", func() {
+				stdout, _ := runInContainer(container, "cat /etc/passwd")
+				Ω(stdout).Should(ContainSubstring("anotheruser"))
 
-		It("defaults to running as vcap when unpriviledged", func() {
-			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(process.Wait()).Should(Equal(0))
-			Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
-		})
+				buffer := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Wait()).Should(Equal(0))
+				Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
+			})
 
-		PIt("can run as an arbitrary user (#82838924)", func() {
-			stdout, _ := runInContainer(container, "cat /etc/passwd")
-			Ω(stdout).Should(ContainSubstring("anotheruser"))
+			It("can send TERM and KILL signals (#83231270)", func() {
+				run_buffer := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "sh",
+					Args: []string{"-c", `
+						trap 'echo "TERM received"' SIGTERM
+						while true; do
+							echo waiting
+							sleep 1
+						done
+					`},
+				}, recordedProcessIO(run_buffer))
+				Ω(err).ShouldNot(HaveOccurred())
 
-			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(process.Wait()).Should(Equal(0))
-			Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
-		})
+				process_buffer := gbytes.NewBuffer()
+				process, err = container.Attach(process.ID(), recordedProcessIO(process_buffer))
+				Ω(err).ShouldNot(HaveOccurred())
 
-		It("can send TERM and KILL signals (#83231270)", func() {
-			run_buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", `
-				  trap 'echo "TERM received"' SIGTERM
-					while true; do
-					  echo waiting
-					  sleep 1
-					done
-				`},
-			}, recordedProcessIO(run_buffer))
-			Ω(err).ShouldNot(HaveOccurred())
+				Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is running")
 
-			process_buffer := gbytes.NewBuffer()
-			process, err = container.Attach(process.ID(), recordedProcessIO(process_buffer))
-			Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed(), "Process sent the TERM signal")
+				Eventually(process_buffer, "2s").Should(gbytes.Say("TERM received"), "Process received the TERM signal")
 
-			Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is running")
+				Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
+				Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
+				Ω(process.Wait()).Should(Equal(255))
+			})
 
-			Ω(process.Signal(garden.SignalTerminate)).Should(Succeed(), "Process sent the TERM signal")
-			Eventually(process_buffer, "2s").Should(gbytes.Say("TERM received"), "Process received the TERM signal")
+			It("can be run as root, privileged", func() {
+				buffer := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Wait()).Should(Equal(0))
+				Ω(buffer.Contents()).Should(ContainSubstring("root"))
+			})
 
-			Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
-			Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
-			Ω(process.Wait()).Should(Equal(255))
+			It("can be run as fake root, unpriviledged", func() {
+				stderr := gbytes.NewBuffer()
+				recorder := garden.ProcessIO{Stdout: GinkgoWriter, Stderr: io.MultiWriter(stderr, GinkgoWriter)}
+				process, err := container.Run(garden.ProcessSpec{Path: "cat", Args: []string{"/proc/vmallocinfo"}, User: "root", Privileged: false}, recorder)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Wait()).ShouldNot(Equal(0))
+				Ω(stderr.Contents()).Should(ContainSubstring("Permission denied"), "Stderr")
+			})
+
+			It("can set rlimits when unprivileged", func() {
+				var nofile uint64 = 1234
+				output := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					Path:   "sh",
+					Args:   []string{"-c", "ulimit -n"},
+					Limits: garden.ResourceLimits{Nofile: &nofile},
+				}, recordedProcessIO(output))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(output).Should(gbytes.Say("1234"))
+				Ω(process.Wait()).Should(Equal(0))
+			})
 		})
 	})
 
@@ -406,7 +522,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		BeforeEach(func() {
-			fusefs_rootfs_path = installRootImage(path.Join(myDir(), "fusefs_rootfs.tgz"), "fusefs")
+			fusefs_rootfs_path = installRootImage("fusefs")
 		})
 
 		It("can mount the fusefs", func() {
