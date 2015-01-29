@@ -352,53 +352,40 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("Networking", func() {
 		It("respects network option to set specific ip for a container (#75464982)", func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{
-				Network:    "10.2.0.0/30",
-				RootFSPath: "docker:///onsi/grace-busybox",
-			})
+			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.0/30"})
 
-			stdout, _ := runInContainer(container, "/sbin/ifconfig")
+			stdout, stderr := runInContainer(container, "ifconfig")
+			Ω(stderr).Should(Equal(""))
 			Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
 			Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
 
-			stdout, _ = runInContainer(container, "/sbin/ping -c 1 -w 3 8.8.8.8")
+			stdout, stderr = runInContainer(container, "ping -c 1 -w 3 8.8.8.8")
+			Ω(stderr).Should(Equal(""))
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 
-			stdout, _ = runInContainer(container, "/sbin/route | grep default")
+			stdout, stderr = runInContainer(container, "route | grep default")
+			Ω(stderr).Should(Equal(""))
 			Ω(stdout).Should(ContainSubstring("10.2.0.2"))
 		})
 
 		It("allows containers to talk to each other (#75464982)", func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{
-				Network:    "10.2.0.1/24",
-				RootFSPath: "docker:///onsi/grace-busybox",
-			})
+			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
+			_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
 
-			_ = createContainer(gardenClient, garden.ContainerSpec{
-				Network:    "10.2.0.2/24",
-				RootFSPath: "docker:///onsi/grace-busybox",
-			})
-
-			stdout, _ := runInContainer(container, "/sbin/ping -c 1 -w 3 10.2.0.2")
+			stdout, stderr := runInContainer(container, "ping -c 1 -w 3 10.2.0.2")
+			Ω(stderr).Should(Equal(""))
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
 
-		It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
-			container1 := createContainer(gardenClient, garden.ContainerSpec{
-				Network:    "10.2.0.1/24",
-				RootFSPath: "docker:///onsi/grace-busybox",
-			})
-
-			container2 := createContainer(gardenClient, garden.ContainerSpec{
-				Network:    "10.2.0.2/24",
-				RootFSPath: "docker:///onsi/grace-busybox",
-			})
+		FIt("doesn't destroy routes when destroying container (Bug #83656106)", func() {
+			container1 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
+			container2 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
 
 			gardenClient.Destroy(container1.Handle())
 
-			stdout, _ := runInContainer(container2, "/sbin/ping -c 1 -w 3 8.8.8.8")
+			stdout, _ := runInContainer(container2, "ping -c 1 -w 3 8.8.8.8")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
@@ -603,65 +590,5 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			runInVagrant("sudo rm -f /var/bindmount-test")
 		})
 	})
-
-	// 	XDescribe("Bugs with snapshotting (#77767958)", func() {
-	// 		BeforeEach(func() {
-	// 			fmt.Println(`
-	// !!!READ THIS!!!
-	// Using this test is non-trivial.  You must:
-	//
-	// - Focus the "Bugs with snapshotting" Describe
-	// - Make sure you are running bosh-lite
-	// - Make sure the -snapshots flag is set in the control script for the warden running in your cell.
-	// - Run this test the first time: this will create containers and both tests should pass.
-	// - Run this test again: it should say that it will NOT create the container and still pass.
-	// - bosh ssh to the cell and monit restart warden
-	// - wait a bit and make sure warden is back up
-	// - Run this test again -- this time these tests will fail with 500.
-	// - Run it a few more times, eventually (I've found) it starts passing again.
-	// `)
-	// 		})
-	//
-	// 		It("should support snapshotting", func() {
-	// 			handle := "snapshotable-container"
-	// 			_, err := gardenClient.Lookup(handle)
-	// 			if err != nil {
-	// 				fmt.Println("CREATING CONTAINER")
-	//
-	// 				_, err = gardenClient.Create(garden.ContainerSpec{
-	// 					Handle: handle,
-	// 					Env: []string{
-	// 						"ROOT_ENV=A",
-	// 						"OVERWRITTEN_ENV=B",
-	// 						"HOME=/nowhere",
-	// 					},
-	// 				})
-	// 				Ω(err).ShouldNot(HaveOccurred())
-	// 			} else {
-	// 				fmt.Println("NOT CREATING CONTAINER")
-	// 			}
-	//
-	// 			container, err := gardenClient.Lookup(handle)
-	// 			Ω(err).ShouldNot(HaveOccurred())
-	// 			buffer := gbytes.NewBuffer()
-	// 			process, err := container.Run(garden.ProcessSpec{
-	// 				Path: "bash",
-	// 				Args: []string{"-c", "printenv"},
-	// 				Env: []string{
-	// 					"OVERWRITTEN_ENV=C",
-	// 				},
-	// 			}, recordedProcessIO(buffer))
-	//
-	// 			Ω(err).ShouldNot(HaveOccurred())
-	//
-	// 			process.Wait()
-	//
-	// 			Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
-	// 			Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
-	// 			Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
-	// 			Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/nowhere"))
-	// 			Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
-	// 		})
-	// 	})
 
 })
