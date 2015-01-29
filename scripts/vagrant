@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+[ -z $DEBUG ] || set -x && export DEBUG
+
+cd ~/workspace/garden-linux-release
+vagrant ssh -c "sudo su -"

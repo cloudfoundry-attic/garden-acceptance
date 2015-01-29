@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+[ -z $DEBUG ] || set -x && export DEBUG
+
+./scripts/post containers "{\"handle\": \"$1\"}"
+
