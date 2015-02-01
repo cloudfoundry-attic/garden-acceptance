@@ -35,7 +35,5 @@ jobs:
       network_mtu: 1499
       listen_network: tcp
       listen_address: 0.0.0.0:7777
-      deny_networks: 
-        - 0.0.0.0/0
       allow_host_access: true
       default_container_grace_time: 120m
