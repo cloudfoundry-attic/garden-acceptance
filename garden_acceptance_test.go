@@ -59,6 +59,12 @@ func runInContainer(container garden.Container, cmd string) (string, string) {
 	return runInVagrant(command)
 }
 
+func runInContainerSuccessfully(container garden.Container, cmd string) string {
+	stdout, stderr := runInContainer(container, cmd)
+	Ω(stderr).Should(Equal(""))
+	return stdout
+}
+
 func destroyAllContainers(client client.Client) {
 	containers, err := client.Containers(nil)
 	Ω(err).ShouldNot(HaveOccurred(), "Error while listing containers")
@@ -279,7 +285,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			PIt("can run as an arbitrary user (#82838924)", func() {
-				stdout, _ := runInContainer(container, "cat /etc/passwd")
+				stdout := runInContainerSuccessfully(container, "cat /etc/passwd")
 				Ω(stdout).Should(ContainSubstring("anotheruser"))
 
 				buffer := gbytes.NewBuffer()
@@ -351,21 +357,18 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Networking", func() {
-		It("respects network option to set specific ip for a container (#75464982)", func() {
+		It("respects network option to set default ip for a container (#75464982)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.0/30"})
 
-			stdout, stderr := runInContainer(container, "ifconfig")
-			Ω(stderr).Should(Equal(""))
+			stdout := runInContainerSuccessfully(container, "ifconfig")
 			Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
 			Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
 
-			stdout, stderr = runInContainer(container, "ping -c 1 -w 3 8.8.8.8")
-			Ω(stderr).Should(Equal(""))
+			stdout = runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 
-			stdout, stderr = runInContainer(container, "route | grep default")
-			Ω(stderr).Should(Equal(""))
+			stdout = runInContainerSuccessfully(container, "route | grep default")
 			Ω(stdout).Should(ContainSubstring("10.2.0.2"))
 		})
 
@@ -373,19 +376,18 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
 			_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
 
-			stdout, stderr := runInContainer(container, "ping -c 1 -w 3 10.2.0.2")
-			Ω(stderr).Should(Equal(""))
+			stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 10.2.0.2")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
 
-		FIt("doesn't destroy routes when destroying container (Bug #83656106)", func() {
+		It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
 			container1 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
 			container2 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
 
 			gardenClient.Destroy(container1.Handle())
 
-			stdout, _ := runInContainer(container2, "ping -c 1 -w 3 8.8.8.8")
+			stdout := runInContainerSuccessfully(container2, "ping -c 1 -w 3 8.8.8.8")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
@@ -497,6 +499,22 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(process.Wait()).Should(Equal(0))
 			Ω(buffer).Should(gbytes.Say("foo"))
 		})
+
+		It("respects ENV vars from Dockerfile (#86540096)", func() {
+			buffer := gbytes.NewBuffer()
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/with-volume"})
+			process, err := container.Run(
+				garden.ProcessSpec{Path: "sh", Args: []string{"-c", "echo $PATH"}},
+				recordedProcessIO(buffer),
+			)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0))
+			Ω(buffer).Should(gbytes.Say("from-dockerfile"))
+		})
+
+		It("supports other registrys (#77226688)", func() {
+			createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker://quay.io/tammersaleh/testing"})
+		})
 	})
 
 	Describe("Fusefs", func() {
@@ -559,7 +577,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			runInVagrant("sudo touch /var/bindmount-test")
-			stdout, _ := runInContainer(container, "ls -l /home/vcap/readonly")
+			stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readonly")
 			Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
 			stdout, stderr := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
@@ -580,11 +598,11 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				},
 			})
 
-			stdout, _ := runInContainer(container, "ls -l /home/vcap/readwrite")
+			stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readwrite")
 			Ω(stdout).ShouldNot(ContainSubstring("bindmount-test"))
 
-			stdout, _ = runInContainer(container, "touch /home/vcap/readwrite/bindmount-test")
-			stdout, _ = runInContainer(container, "ls -l /home/vcap/readwrite")
+			stdout = runInContainerSuccessfully(container, "touch /home/vcap/readwrite/bindmount-test")
+			stdout = runInContainerSuccessfully(container, "ls -l /home/vcap/readwrite")
 			Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
 			runInVagrant("sudo rm -f /var/bindmount-test")

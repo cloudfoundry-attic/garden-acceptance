@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -27,6 +28,9 @@ func main() {
 	container, err := gardenClient.Create(garden.ContainerSpec{Handle: "foo"})
 	failIf(err, "Create")
 
-	err = container.NetOut(garden.NetOutRule{Ports: []garden.PortRange{garden.PortRangeFromPort(80)}})
+	err = container.NetOut(garden.NetOutRule{
+		Protocol: garden.ProtocolTCP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("93.184.216.34"))},
+	})
 	failIf(err, "NetOut")
 }

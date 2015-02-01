@@ -5,4 +5,7 @@ set -e
 [ -z $DEBUG ] || set -x && export DEBUG
 
 cd $GARDEN_LINUX_RELEASE_DIR
-vagrant ssh -c "sudo su -"
+gh pull
+gh suir
+vagrant up --provider=virtualbox
+vagrant provision
