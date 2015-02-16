@@ -165,7 +165,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	Describe("A running container", func() {
+	Describe("A container", func() {
 		var container garden.Container
 
 		Context("that's privileged", func() {
@@ -269,6 +269,49 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				})
 			})
 
+		})
+
+		Context("with initial properties", func() {
+			BeforeEach(func() {
+				container = createContainer(gardenClient, garden.ContainerSpec{
+					Properties: garden.Properties{"foo": "bar"},
+				})
+			})
+
+			It("can CRUD properties", func() {
+				value, err := container.GetProperty("foo")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(value).Should(Equal("bar"))
+
+				err = container.SetProperty("foo", "baz")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				err = container.SetProperty("fiz", "buz")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				err = container.RemoveProperty("foo")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				info, err := container.Info()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(info.Properties).Should(Equal(garden.Properties{"fiz": "buz"}))
+			})
+		})
+
+		Context("without initial properties", func() {
+			BeforeEach(func() {
+				container = createContainer(gardenClient, garden.ContainerSpec{})
+			})
+
+			It("can set a property (#87599106)", func() {
+				err := container.SetProperty("foo", "bar")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				value, err := container.GetProperty("foo")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(value).Should(Equal("bar"))
+			})
 		})
 
 		Context("that's unprivileged", func() {
