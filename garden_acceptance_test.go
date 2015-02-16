@@ -160,7 +160,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			stdout, stderr := runInVagrant(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
 
 			Ω(stderr).Should(Equal(""), "Curl STDERR")
-			Ω(stdout).Should(HavePrefix("{\"handle\":"), "Curl STDOUT")
+			Ω(stdout).Should(HavePrefix("{\"Handle\":"), "Curl STDOUT")
 			Ω(gardenClient.Destroy(outer_container.Handle())).Should(Succeed())
 		})
 	})
