@@ -25,10 +25,18 @@ func main() {
 	gardenClient := client.New(connection.New("tcp", "127.0.0.1:7777"))
 
 	_ = gardenClient.Destroy("foo")
-	container, err := gardenClient.Create(garden.ContainerSpec{Handle: "foo"})
+	foo, err := gardenClient.Create(garden.ContainerSpec{Handle: "foo"})
+	failIf(err, "Create")
+	bar, err := gardenClient.Create(garden.ContainerSpec{Handle: "bar"})
 	failIf(err, "Create")
 
-	err = container.NetOut(garden.NetOutRule{
+	err = foo.NetOut(garden.NetOutRule{
+		Protocol: garden.ProtocolTCP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("93.184.216.34"))},
+	})
+	failIf(err, "NetOut")
+
+	err = bar.NetOut(garden.NetOutRule{
 		Protocol: garden.ProtocolTCP,
 		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("93.184.216.34"))},
 	})
