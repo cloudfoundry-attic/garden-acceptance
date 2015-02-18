@@ -453,6 +453,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
+
+		FIt("errors gracefully when provisioning overlapping networks (#79933424)", func() {
+			_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
+			_, err := gardenClient.Create(garden.ContainerSpec{Network: "10.2.0.2/16"})
+			Ω(err).Should(HaveOccurred())
+			Ω(err).Should(MatchError("10.2.0.2"))
+		})
 	})
 
 	Describe("Destroy", func() {
