@@ -23,7 +23,7 @@ To run these tests, you'll need to clone the [cloudfoundry-incubator/garden-linu
 
 First, set the environment variable `GARDEN_LINUX_RELEASE_DIR` to the directory containing the `garden-linux-release` repository. For example:
 
-    export GARDEN_LINUX_RELEASE_DIR=~/workspace/garden-linux-release
+    export GARDEN_LINUX_RELEASE_DIR=~/path/to/garden-linux-release
 
 The tests use this to access the vagrant VM for filesystem commands.  With Garden running in vagrant, exposed on `127.0.0.1:7777`, issue the following:
 
