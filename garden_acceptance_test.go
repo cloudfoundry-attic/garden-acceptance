@@ -154,7 +154,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Eventually(nestedServerOutput).Should(gbytes.Say("garden-linux.started"))
 		})
 
-		It("can run a nested container (#83806940)", func() {
+		PIt("can run a nested container (#83806940)", func() {
 			info, err := outer_container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -452,6 +452,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			stdout := runInContainerSuccessfully(container2, "ping -c 1 -w 3 8.8.8.8")
 			Ω(stdout).Should(ContainSubstring("64 bytes from"))
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		})
+
+		It("errors gracefully when provisioning overlapping networks (#79933424)", func() {
+			_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.1.1/24"})
+			_, err := gardenClient.Create(garden.ContainerSpec{Network: "10.2.0.2/16"})
+			Ω(err).Should(HaveOccurred())
+			Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.1.0/24)"))
 		})
 	})
 
