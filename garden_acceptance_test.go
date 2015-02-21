@@ -18,6 +18,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
+var lsProcessSpec = garden.ProcessSpec{Path: "ls", Args: []string{"-l", "/"}}
 var silentProcessIO = garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
 
 func recordedProcessIO(buffer *gbytes.Buffer) garden.ProcessIO {
@@ -455,10 +456,36 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		It("errors gracefully when provisioning overlapping networks (#79933424)", func() {
-			_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.1.1/24"})
+			_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
 			_, err := gardenClient.Create(garden.ContainerSpec{Network: "10.2.0.2/16"})
 			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.1.0/24)"))
+			Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.0.0/24)"))
+		})
+	})
+
+	Describe("When the server is restarted", func() {
+		restartGarden := func() {
+			stdout, stderr := runInVagrant("sudo /var/vcap/bosh/bin/monit restart garden")
+			Ω(stdout).Should(Equal(""))
+			Ω(stderr).Should(Equal(""))
+			time.Sleep(15 * time.Second)
+		}
+
+		It("Can restore multiple privileged containers (#88685840)", func() {
+			container1 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
+			container2 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
+			restartGarden()
+			_, err := container1.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+			_, err = container2.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("can run a process in a restored container (#88686146)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
+			restartGarden()
+			_, err := container.Run(lsProcessSpec, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -544,8 +571,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("mounting docker images", func() {
-		var lsProcessSpec = garden.ProcessSpec{Path: "ls", Args: []string{"-l", "/"}}
-
 		It("mounts an ubuntu docker image, just fine", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
 			process, err := container.Run(lsProcessSpec, silentProcessIO)

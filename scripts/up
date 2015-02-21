@@ -5,6 +5,7 @@ set -e
 [ -z $DEBUG ] || set -x && export DEBUG
 
 cd $GARDEN_LINUX_RELEASE_DIR
+gh nuke
 gh pull
 gh suir
-vagrant up --provider=virtualbox
+vagrant provision

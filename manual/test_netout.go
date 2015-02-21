@@ -21,24 +21,37 @@ func failIf(err error, action string) {
 	}
 }
 
+func restartGarden() {
+	_, _ = runInVagrant("sudo /var/vcap/bosh/bin/monit restart garden")
+	time.Sleep(15 * time.Second)
+}
+
+func runInVagrant(cmd string) (string, string) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	command := exec.Command("vagrant", "ssh", "-c", cmd)
+	command.Dir = gardenLinuxReleaseDir()
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	command.Run()
+
+	return stdout.String(), stderr.String()
+}
+
 func main() {
 	gardenClient := client.New(connection.New("tcp", "127.0.0.1:7777"))
 
 	_ = gardenClient.Destroy("foo")
 	foo, err := gardenClient.Create(garden.ContainerSpec{Handle: "foo"})
 	failIf(err, "Create")
-	bar, err := gardenClient.Create(garden.ContainerSpec{Handle: "bar"})
-	failIf(err, "Create")
 
 	err = foo.NetOut(garden.NetOutRule{
-		Protocol: garden.ProtocolTCP,
-		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("93.184.216.34"))},
+		Protocol: garden.ProtocolICMP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("8.8.8.8"))},
 	})
 	failIf(err, "NetOut")
 
-	err = bar.NetOut(garden.NetOutRule{
-		Protocol: garden.ProtocolTCP,
-		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("93.184.216.34"))},
-	})
-	failIf(err, "NetOut")
+	restartGarden()
+
 }
