@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -420,8 +421,17 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Networking", func() {
+		var pingRule = func(IP string) garden.NetOutRule {
+			return garden.NetOutRule{
+				Protocol: garden.ProtocolICMP,
+				Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP(IP))},
+			}
+		}
+
 		It("respects network option to set default ip for a container (#75464982)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.0/30"})
+			err := container.NetOut(pingRule("8.8.8.8"))
+			Ω(err).ShouldNot(HaveOccurred())
 
 			stdout := runInContainerSuccessfully(container, "ifconfig")
 			Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
@@ -447,6 +457,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
 			container1 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
 			container2 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
+			err := container2.NetOut(pingRule("8.8.8.8"))
+			Ω(err).ShouldNot(HaveOccurred())
 
 			gardenClient.Destroy(container1.Handle())
 
@@ -537,11 +549,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
 	})
 
-	It("fails when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
-		_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
-		Ω(err).Should(HaveOccurred())
-	})
-
 	Describe("Bugs around the container lifecycle (#77768828)", func() {
 		It("supports deleting a container after an errant delete", func() {
 			handle := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -571,6 +578,11 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("mounting docker images", func() {
+		It("fails when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
+			_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
+			Ω(err).Should(HaveOccurred())
+		})
+
 		It("mounts an ubuntu docker image, just fine", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace"})
 			process, err := container.Run(lsProcessSpec, silentProcessIO)
