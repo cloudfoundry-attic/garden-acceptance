@@ -19,8 +19,8 @@ Vagrant.configure("2") do |config|
 
 	config.vm.provision "shell", inline: <<-EOS
     set -e
-    apt-get update
-    apt-get install -y git mercurial
+    apt-get update -qq
+    apt-get install -qq -y git mercurial
     curl -s -o /tmp/go.tgz #{go_url}
     tar -C /usr/local -xzf /tmp/go.tgz
     rm /tmp/go.tgz
