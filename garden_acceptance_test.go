@@ -29,6 +29,13 @@ func recordedProcessIO(buffer *gbytes.Buffer) garden.ProcessIO {
 	}
 }
 
+func pingRule(IP string) garden.NetOutRule {
+	return garden.NetOutRule{
+		Protocol: garden.ProtocolICMP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP(IP))},
+	}
+}
+
 func gardenLinuxReleaseDir() (s string) {
 	s = os.Getenv("GARDEN_LINUX_RELEASE_DIR")
 	if s == "" {
@@ -421,25 +428,30 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Networking", func() {
-		var pingRule = func(IP string) garden.NetOutRule {
-			return garden.NetOutRule{
-				Protocol: garden.ProtocolICMP,
-				Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP(IP))},
-			}
-		}
+		It("can open outbound ICMP connections (#85601268)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
+			Ω(container.NetOut(pingRule("8.8.8.8"))).ShouldNot(HaveOccurred())
 
+			stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
+			Ω(stdout).Should(ContainSubstring("64 bytes from"))
+			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		})
+
+		// It("can open outbound TCP connections (#82554270)", func() {
+		// 	container := createContainer(gardenClient, garden.ContainerSpec{})
+		// 	Ω(container.NetOut(tcpRule("8.8.8.8"))).ShouldNot(HaveOccurred())
+		//
+		// 	stdout = runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
+		// 	Ω(stdout).Should(ContainSubstring("64 bytes from"))
+		// 	Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		// })
+		//
 		It("respects network option to set default ip for a container (#75464982)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.0/30"})
-			err := container.NetOut(pingRule("8.8.8.8"))
-			Ω(err).ShouldNot(HaveOccurred())
 
 			stdout := runInContainerSuccessfully(container, "ifconfig")
 			Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
 			Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
-
-			stdout = runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
-			Ω(stdout).Should(ContainSubstring("64 bytes from"))
-			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 
 			stdout = runInContainerSuccessfully(container, "route | grep default")
 			Ω(stdout).Should(ContainSubstring("10.2.0.2"))
@@ -457,8 +469,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
 			container1 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
 			container2 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
-			err := container2.NetOut(pingRule("8.8.8.8"))
-			Ω(err).ShouldNot(HaveOccurred())
+			Ω(container2.NetOut(pingRule("8.8.8.8"))).ShouldNot(HaveOccurred())
 
 			gardenClient.Destroy(container1.Handle())
 
@@ -477,27 +488,35 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("When the server is restarted", func() {
 		restartGarden := func() {
-			stdout, stderr := runInVagrant("sudo /var/vcap/bosh/bin/monit restart garden")
+			restart := "sudo /var/vcap/bosh/bin/monit restart garden"
+			wait := "while sudo /var/vcap/bosh/bin/monit summary | grep \"Process 'garden'\"| grep -vq running; do sleep 1; done"
+			stdout, stderr := runInVagrant(restart + " && " + wait)
 			Ω(stdout).Should(Equal(""))
 			Ω(stderr).Should(Equal(""))
-			time.Sleep(15 * time.Second)
 		}
 
-		It("Can restore multiple privileged containers (#88685840)", func() {
-			container1 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
+		It("continues to run the containers", func() {
+			By("Setup containers and restart garden.")
+			container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
 			container2 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
+			Ω(container.NetOut(pingRule("8.8.8.8"))).ShouldNot(HaveOccurred())
+
 			restartGarden()
-			_, err := container1.Info()
+
+			By("Restore multiple privileged containers (#88685840)")
+			_, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 			_, err = container2.Info()
 			Ω(err).ShouldNot(HaveOccurred())
-		})
 
-		It("can run a process in a restored container (#88686146)", func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{})
-			restartGarden()
-			_, err := container.Run(lsProcessSpec, silentProcessIO)
+			By("Run a process in a restored container (#88686146)")
+			_, err = container.Run(lsProcessSpec, silentProcessIO)
 			Ω(err).ShouldNot(HaveOccurred())
+
+			By("NetOut survives restart (#82554270)")
+			stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
+			Ω(stdout).Should(ContainSubstring("64 bytes from"))
+			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
 	})
 
