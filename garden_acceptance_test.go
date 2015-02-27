@@ -428,6 +428,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Networking", func() {
+		It("gives a better error message when NetOut is given port and no protocol (#87201436)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
+			err := container.NetOut(garden.NetOutRule{
+				Ports: []garden.PortRange{garden.PortRangeFromPort(80)},
+			})
+			Ω(err).Should(MatchError("Ports cannot be specified for Protocol ALL"))
+		})
+
 		It("can open outbound ICMP connections (#85601268)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{})
 			Ω(container.NetOut(pingRule("8.8.8.8"))).ShouldNot(HaveOccurred())
