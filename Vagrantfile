@@ -49,7 +49,8 @@ Vagrant.configure("2") do |config|
     git clone #{garden_linux_repo} $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
     cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
     echo 'Godep Restoring...'
-    godep restore
+    # https://www.pivotaltracker.com/n/projects/1158420/stories/89281608
+    godep restore || godep restore
     echo 'Running make...'
     make
     echo 'Building garden-linux...'
