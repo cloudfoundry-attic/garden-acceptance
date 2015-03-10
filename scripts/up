@@ -8,8 +8,8 @@ cd $GARDEN_LINUX_RELEASE_DIR
 gh nuke
 gh pull
 gh suir
-if vagrant status | grep -Eq "default.*not created"; then
-  vagrant up --provider=virtualbox
-else
+if vagrant status | grep -Eq "default.*running"; then
   vagrant provision
+else
+  vagrant up --provider=virtualbox --provision
 fi

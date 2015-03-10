@@ -302,10 +302,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				err = container.RemoveProperty("foo")
 				Ω(err).ShouldNot(HaveOccurred())
 
-				info, err := container.Info()
+				properties, err := container.GetProperties()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(info.Properties).Should(Equal(garden.Properties{"fiz": "buz"}))
+				Ω(properties).Should(Equal(garden.Properties{"fiz": "buz"}))
 			})
 		})
 
@@ -544,6 +544,36 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		It("fails when attempting to delete a non-existant container (#86044470)", func() {
 			err := gardenClient.Destroy("asdf")
 			Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "asdf"}))
+		})
+	})
+
+	Describe("Info()", func() {
+		var info garden.ContainerInfo
+		var err error
+
+		BeforeEach(func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.1.1.1/16"})
+			info, err = container.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("Returns the Container IP", func() {
+			Ω(info.ContainerIP).Should(Equal("10.1.1.1"))
+		})
+	})
+
+	Describe("Metrics()", func() {
+		var metrics garden.Metrics
+		var err error
+
+		BeforeEach(func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.1.1.1/16"})
+			metrics, err = container.Metrics()
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		FIt("Returns the Container IP", func() {
+			Ω(metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
 		})
 	})
 
