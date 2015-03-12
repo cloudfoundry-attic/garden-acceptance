@@ -427,6 +427,21 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
+	It("cleans up after running processes (#89969450)", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{})
+		var err error
+		for i := 0; i < 10; i++ {
+			_, err = container.Run(lsProcessSpec, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+		}
+		info, err := container.Info()
+		Ω(err).ShouldNot(HaveOccurred())
+		processesPath := info.ContainerPath + "/processes"
+		stdout, stderr := runInVagrant("cd " + processesPath + " && ls *.sock")
+		Ω(stdout).Should(BeEmpty())
+		Ω(stderr).Should(ContainSubstring("No such file or directory"))
+	})
+
 	Describe("Networking", func() {
 		It("gives a better error message when NetOut is given port and no protocol (#87201436)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{})
