@@ -39,3 +39,7 @@ jobs:
       default_container_grace_time: 120m
       deny_networks: 
         - 0.0.0.0/0
+      insecure_docker_registry_list:
+        - 10.1.1.1
+        - 10.1.1.2
+    

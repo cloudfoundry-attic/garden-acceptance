@@ -504,6 +504,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		}
 
 		It("continues to run the containers", func() {
+			// Restarting the Garden server is expensive, so we lump all of the tests into this big It statement.
 			By("Setup containers and restart garden.")
 			container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
 			container2 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
@@ -567,12 +568,12 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		var err error
 
 		BeforeEach(func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.1.1.1/16"})
+			container := createContainer(gardenClient, garden.ContainerSpec{})
 			metrics, err = container.Metrics()
 			Ω(err).ShouldNot(HaveOccurred())
 		})
 
-		FIt("Returns the Container IP", func() {
+		It("Returns the CPU Usage", func() {
 			Ω(metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
 		})
 	})
