@@ -564,6 +564,27 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Info()", func() {
+		var (
+			container1, container2 garden.Container
+			handle1, handle2       string
+		)
+
+		BeforeEach(func() {
+			container1 = createContainer(gardenClient, garden.ContainerSpec{Network: "10.1.1.1/16"})
+			container2 = createContainer(gardenClient, garden.ContainerSpec{Network: "10.1.1.2/16"})
+			handle1 = container1.Handle()
+			handle2 = container2.Handle()
+		})
+
+		It("Returns the IPs for both containers", func() {
+			infos, err := gardenClient.BulkInfo([]string{handle1, handle2})
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(infos[handle1].Info.ContainerIP).Should(Equal("10.1.1.1"))
+			Ω(infos[handle2].Info.ContainerIP).Should(Equal("10.1.1.2"))
+		})
+	})
+
+	Describe("Info()", func() {
 		var info garden.ContainerInfo
 		var err error
 
