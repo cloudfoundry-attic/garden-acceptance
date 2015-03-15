@@ -92,23 +92,23 @@ func createContainer(client garden.Client, spec garden.ContainerSpec) (container
 	return
 }
 
-func installRootImage(rootfs_name string) string {
-	local_path := path.Join(myDir(), "rootfs_images", rootfs_name+".tgz")
-	vagrant_path := path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz")
-	_ = os.Remove(vagrant_path)
-	err := os.Link(local_path, vagrant_path)
+func installRootImage(rootFSName string) string {
+	localPath := path.Join(myDir(), "rootfs_images", rootFSName+".tgz")
+	vagrantPath := path.Join(gardenLinuxReleaseDir(), rootFSName+".tgz")
+	_ = os.Remove(vagrantPath)
+	err := os.Link(localPath, vagrantPath)
 	Ω(err).ShouldNot(HaveOccurred())
-	rootfs_directory := "/home/vcap/" + rootfs_name
+	rootFSDirectory := "/home/vcap/" + rootFSName
 
-	_, stderr := runInVagrant("sudo mkdir -p " + rootfs_directory + " && sudo tar -xzf /vagrant/" + rootfs_name + ".tgz -C " + rootfs_directory)
+	_, stderr := runInVagrant("sudo mkdir -p " + rootFSDirectory + " && sudo tar -xzf /vagrant/" + rootFSName + ".tgz -C " + rootFSDirectory)
 	Ω(stderr).Should(Equal(""))
-	return rootfs_directory
+	return rootFSDirectory
 }
 
-func removeRootImage(rootfs_name string) {
-	err := os.Remove(path.Join(gardenLinuxReleaseDir(), rootfs_name+".tgz"))
+func removeRootImage(rootFSName string) {
+	err := os.Remove(path.Join(gardenLinuxReleaseDir(), rootFSName+".tgz"))
 	Ω(err).ShouldNot(HaveOccurred())
-	_, stderr := runInVagrant("sudo rm -rf /home/vcap/" + rootfs_name)
+	_, stderr := runInVagrant("sudo rm -rf /home/vcap/" + rootFSName)
 	Ω(stderr).Should(Equal(""))
 }
 
@@ -121,16 +121,16 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("when garden is running in a container,", func() {
-		var outer_container garden.Container
+		var outerContainer garden.Container
 		nestedServerOutput := gbytes.NewBuffer()
 
 		AfterEach(func() { removeRootImage("nestable") })
 
 		BeforeEach(func() {
-			nested_rootfs_path := installRootImage("nestable")
+			nestedRootFSPath := installRootImage("nestable")
 
-			outer_container = createContainer(gardenClient, garden.ContainerSpec{
-				RootFSPath: nested_rootfs_path,
+			outerContainer = createContainer(gardenClient, garden.ContainerSpec{
+				RootFSPath: nestedRootFSPath,
 				Privileged: true,
 				BindMounts: []garden.BindMount{
 					{SrcPath: "/var/vcap/packages/garden-linux/bin", DstPath: "/home/vcap/bin/", Mode: garden.BindMountModeRO},
@@ -140,7 +140,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				},
 			})
 
-			_, err := outer_container.Run(garden.ProcessSpec{
+			_, err := outerContainer.Run(garden.ProcessSpec{
 				Path: "sh",
 				User: "root",
 				Dir:  "/home/vcap",
@@ -164,14 +164,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		PIt("can run a nested container (#83806940)", func() {
-			info, err := outer_container.Info()
+			info, err := outerContainer.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			stdout, stderr := runInVagrant(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
 
 			Ω(stderr).Should(Equal(""), "Curl STDERR")
 			Ω(stdout).Should(HavePrefix("{\"Handle\":"), "Curl STDOUT")
-			Ω(gardenClient.Destroy(outer_container.Handle())).Should(Succeed())
+			Ω(gardenClient.Destroy(outerContainer.Handle())).Should(Succeed())
 		})
 	})
 
@@ -349,32 +349,32 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("can send TERM and KILL signals to processes (#83231270)", func() {
-				run_buffer := gbytes.NewBuffer()
+				runBuffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", `
 						trap 'echo "TERM received"' SIGTERM
 						while true; do echo waiting; sleep 1; done
 					`},
-				}, recordedProcessIO(run_buffer))
+				}, recordedProcessIO(runBuffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				process_buffer := gbytes.NewBuffer()
-				process, err = container.Attach(process.ID(), recordedProcessIO(process_buffer))
+				processBuffer := gbytes.NewBuffer()
+				process, err = container.Attach(process.ID(), recordedProcessIO(processBuffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is running")
+				Eventually(processBuffer, "2s").Should(gbytes.Say("waiting"), "Process is running")
 
 				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed(), "Process sent the TERM signal")
-				Eventually(process_buffer, "2s").Should(gbytes.Say("TERM received"), "Process received the TERM signal")
+				Eventually(processBuffer, "2s").Should(gbytes.Say("TERM received"), "Process received the TERM signal")
 
-				Eventually(process_buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
+				Eventually(processBuffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
 				Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
 				Ω(process.Wait()).Should(Equal(255))
 			})
 
 			It("allows the process to catch SIGCHLD (#85801952)", func() {
-				run_buffer := gbytes.NewBuffer()
+				runBuffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", `
@@ -383,14 +383,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 						$(ls / >/dev/null 2>&1);
 						sleep 1; echo waiting;
 					`},
-				}, recordedProcessIO(run_buffer))
+				}, recordedProcessIO(runBuffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				process_buffer := gbytes.NewBuffer()
-				process, err = container.Attach(process.ID(), recordedProcessIO(process_buffer))
+				processBuffer := gbytes.NewBuffer()
+				process, err = container.Attach(process.ID(), recordedProcessIO(processBuffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Eventually(process_buffer, "2s").Should(gbytes.Say("SIGCHLD received"))
+				Eventually(processBuffer, "2s").Should(gbytes.Say("SIGCHLD received"))
 				Ω(process.Wait()).Should(Equal(0))
 			})
 
@@ -718,7 +718,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Fusefs", func() {
-		var fusefs_rootfs_path string
+		var fuseFSRootFSPath string
 		var container garden.Container
 
 		AfterEach(func() {
@@ -727,11 +727,11 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 
 		BeforeEach(func() {
-			fusefs_rootfs_path = installRootImage("fusefs")
+			fuseFSRootFSPath = installRootImage("fusefs")
 		})
 
 		It("can mount the fusefs", func() {
-			container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: fusefs_rootfs_path})
+			container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: fuseFSRootFSPath})
 			mountpoint := "/tmp/fuse-test"
 			output := gbytes.NewBuffer()
 
