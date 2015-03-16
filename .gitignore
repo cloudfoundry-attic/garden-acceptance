@@ -1,4 +1,5 @@
 *.test
 rootfs_images/*
+tmp/*
 !.gitkeep
 .vagrant
