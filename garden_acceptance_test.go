@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"os/exec"
-	"path"
-	"runtime"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -36,25 +33,11 @@ func pingRule(IP string) garden.NetOutRule {
 	}
 }
 
-func gardenLinuxReleaseDir() (s string) {
-	s = os.Getenv("GARDEN_LINUX_RELEASE_DIR")
-	if s == "" {
-		Fail("$GARDEN_LINUX_RELEASE_DIR must be set to the path of the garden-linux-release repo")
-	}
-	return
-}
-
-func myDir() (s string) {
-	_, filename, _, _ := runtime.Caller(1)
-	return path.Dir(filename)
-}
-
-func runInVagrant(cmd string) (string, string) {
+func runCommand(cmd string) (string, string) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	command := exec.Command("vagrant", "ssh", "-c", cmd)
-	command.Dir = gardenLinuxReleaseDir()
+	command := exec.Command("sh", "-c", cmd)
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	command.Run()
@@ -65,7 +48,7 @@ func runInVagrant(cmd string) (string, string) {
 func runInContainer(container garden.Container, cmd string) (string, string) {
 	info, _ := container.Info()
 	command := fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd)
-	return runInVagrant(command)
+	return runCommand(command)
 }
 
 func runInContainerSuccessfully(container garden.Container, cmd string) string {
@@ -92,28 +75,20 @@ func createContainer(client garden.Client, spec garden.ContainerSpec) (container
 	return
 }
 
-func installRootImage(rootFSName string) string {
-	localPath := path.Join(myDir(), "rootfs_images", rootFSName+".tgz")
-	vagrantPath := path.Join(gardenLinuxReleaseDir(), rootFSName+".tgz")
-	_ = os.Remove(vagrantPath)
-	err := os.Link(localPath, vagrantPath)
-	Ω(err).ShouldNot(HaveOccurred())
-	rootFSDirectory := "/home/vcap/" + rootFSName
-
-	_, stderr := runInVagrant("sudo mkdir -p " + rootFSDirectory + " && sudo tar -xzf /vagrant/" + rootFSName + ".tgz -C " + rootFSDirectory)
-	Ω(stderr).Should(Equal(""))
-	return rootFSDirectory
-}
-
-func removeRootImage(rootFSName string) {
-	err := os.Remove(path.Join(gardenLinuxReleaseDir(), rootFSName+".tgz"))
-	Ω(err).ShouldNot(HaveOccurred())
-	_, stderr := runInVagrant("sudo rm -rf /home/vcap/" + rootFSName)
-	Ω(stderr).Should(Equal(""))
-}
-
 var _ = Describe("Garden Acceptance Tests", func() {
 	var gardenClient client.Client
+
+	BeforeSuite(func() {
+		stdout, stderr := runCommand("sudo /vagrant/vagrant/ctl restart")
+		Ω(stderr).Should(Equal(""))
+		Ω(stdout).Should(ContainSubstring("Starting server"))
+	})
+
+	AfterSuite(func() {
+		stdout, stderr := runCommand("sudo /vagrant/vagrant/ctl stop")
+		Ω(stderr).Should(Equal(""))
+		Ω(stdout).Should(ContainSubstring("Stopping server"))
+	})
 
 	BeforeEach(func() {
 		gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
@@ -124,13 +99,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		var outerContainer garden.Container
 		nestedServerOutput := gbytes.NewBuffer()
 
-		AfterEach(func() { removeRootImage("nestable") })
-
 		BeforeEach(func() {
-			nestedRootFSPath := installRootImage("nestable")
-
 			outerContainer = createContainer(gardenClient, garden.ContainerSpec{
-				RootFSPath: nestedRootFSPath,
+				RootFSPath: "/home/vagrant/garden/rootfs/nestable",
 				Privileged: true,
 				BindMounts: []garden.BindMount{
 					{SrcPath: "/var/vcap/packages/garden-linux/bin", DstPath: "/home/vcap/bin/", Mode: garden.BindMountModeRO},
@@ -167,7 +138,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			info, err := outerContainer.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			stdout, stderr := runInVagrant(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
+			stdout, stderr := runCommand(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
 
 			Ω(stderr).Should(Equal(""), "Curl STDERR")
 			Ω(stdout).Should(HavePrefix("{\"Handle\":"), "Curl STDOUT")
@@ -353,7 +324,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", `
-						trap 'echo "TERM received"' SIGTERM
+						trap 'echo "TERM received"' TERM
 						while true; do echo waiting; sleep 1; done
 					`},
 				}, recordedProcessIO(runBuffer))
@@ -374,24 +345,20 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("allows the process to catch SIGCHLD (#85801952)", func() {
-				runBuffer := gbytes.NewBuffer()
+				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", `
-						trap 'echo "SIGCHLD received"' SIGCHLD
-						sleep 1; echo waiting;
+						trap 'echo "SIGCHLD received"' CHLD
 						$(ls / >/dev/null 2>&1);
-						sleep 1; echo waiting;
+						while true; do sleep 1; echo waiting; done
 					`},
-				}, recordedProcessIO(runBuffer))
+				}, recordedProcessIO(buffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				processBuffer := gbytes.NewBuffer()
-				process, err = container.Attach(process.ID(), recordedProcessIO(processBuffer))
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Eventually(processBuffer, "2s").Should(gbytes.Say("SIGCHLD received"))
-				Ω(process.Wait()).Should(Equal(0))
+				Eventually(buffer, "2s").Should(gbytes.Say("SIGCHLD received"))
+				Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
+				process.Wait()
 			})
 
 			It("can run privileged processes as root", func() {
@@ -437,7 +404,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		info, err := container.Info()
 		Ω(err).ShouldNot(HaveOccurred())
 		processesPath := info.ContainerPath + "/processes"
-		stdout, stderr := runInVagrant("cd " + processesPath + " && ls *.sock")
+		stdout, stderr := runCommand("cd " + processesPath + " && ls *.sock")
 		Ω(stdout).Should(BeEmpty())
 		Ω(stderr).Should(ContainSubstring("No such file or directory"))
 	})
@@ -511,10 +478,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("When the server is restarted", func() {
 		restartGarden := func() {
-			restart := "sudo /var/vcap/bosh/bin/monit restart garden"
-			wait := "while sudo /var/vcap/bosh/bin/monit summary | grep \"Process 'garden'\"| grep -vq running; do sleep 1; done"
-			stdout, stderr := runInVagrant(restart + " && " + wait)
-			Ω(stdout).Should(Equal(""))
+			stdout, stderr := runCommand("sudo /vagrant/vagrant/ctl restart")
+			Ω(stdout).Should(ContainSubstring("Starting server"))
 			Ω(stderr).Should(Equal(""))
 		}
 
@@ -609,7 +574,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 		})
 
-		It("Returns the CPU Usage", func() {
+		FIt("Returns the CPU Usage", func() {
 			Ω(metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
 		})
 	})
@@ -620,6 +585,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				"ROOT_ENV=A",
 				"OVERWRITTEN_ENV=B",
 				"HOME=/nowhere",
+				"PASSWORD=;$*@='\"$(pwd)!!",
 			},
 		})
 
@@ -641,6 +607,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
 		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/nowhere"))
 		Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
+		Ω(buffer.Contents()).Should(ContainSubstring("PASSWORD=;$*@='\"$(pwd)!!"))
 	})
 
 	Describe("Bugs around the container lifecycle (#77768828)", func() {
@@ -718,20 +685,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("Fusefs", func() {
-		var fuseFSRootFSPath string
 		var container garden.Container
 
 		AfterEach(func() {
 			destroyAllContainers(gardenClient)
-			removeRootImage("fusefs")
-		})
-
-		BeforeEach(func() {
-			fuseFSRootFSPath = installRootImage("fusefs")
 		})
 
 		It("can mount the fusefs", func() {
-			container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: fuseFSRootFSPath})
+			container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: "/home/vagrant/garden/rootfs/fusefs"})
 			mountpoint := "/tmp/fuse-test"
 			output := gbytes.NewBuffer()
 
@@ -765,7 +726,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("BindMounts", func() {
 		It("mounts a read-only BindMount (#75464648)", func() {
-			runInVagrant("/usr/bin/sudo rm -f /var/bindmount-test")
+			runCommand("/usr/bin/sudo rm -f /var/bindmount-test")
 
 			container := createContainer(gardenClient, garden.ContainerSpec{
 				BindMounts: []garden.BindMount{
@@ -776,14 +737,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				},
 			})
 
-			runInVagrant("sudo touch /var/bindmount-test")
+			runCommand("sudo touch /var/bindmount-test")
 			stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readonly")
 			Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
 			stdout, stderr := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
 			Ω(stderr).Should(ContainSubstring("Read-only file system"))
 
-			runInVagrant("sudo rm -f /var/bindmount-test")
+			runCommand("sudo rm -f /var/bindmount-test")
 		})
 
 		It("mounts a read/write BindMount (#75464648)", func() {
@@ -805,7 +766,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			stdout = runInContainerSuccessfully(container, "ls -l /home/vcap/readwrite")
 			Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
-			runInVagrant("sudo rm -f /var/bindmount-test")
+			runCommand("sudo rm -f /var/bindmount-test")
 		})
 	})
 

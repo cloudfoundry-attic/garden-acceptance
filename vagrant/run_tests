@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd /vagrant
+ginkgo watch -succinct=true -slowSpecThreshold=150

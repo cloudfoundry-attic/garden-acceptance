@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -e
+[ -z $DEBUG ] || set -x && export DEBUG
+
+export H=/home/vagrant
+
+echo ":::: Improving SSH.."
+echo "UseDNS no" >> /etc/ssh/sshd_config
+echo "GSSAPIAuthentication no" >> /etc/ssh/sshd_config
+
+echo ":::: Updating..."
+apt-get update -qq -y > /dev/null
+apt-get install -qq -y git mercurial linux-image-extra-$(uname -r) > /dev/null
+
+echo ":::: Installing Go..."
+tar -C /usr/local -xzf /vagrant/vagrant/tmp/go.tgz
+
+echo ":::: Preparing directories..."
+mkdir -p $H/garden/{containers,snapshots,overlays,rootfs,depot,graph}
+
+echo ":::: Unpacking rootfs'..."
+mkdir -p $H/garden/rootfs/{lucid64,nestable,fusefs}
+tar -C $H/garden/rootfs/lucid64  -xzpf /vagrant/vagrant/tmp/lucid64.tgz
+tar -C $H/garden/rootfs/nestable -xzpf /vagrant/vagrant/tmp/nestable.tgz
+tar -C $H/garden/rootfs/fusefs   -xzpf /vagrant/vagrant/tmp/fusefs.tgz
+
+echo ":::: Installing godep..."
+echo "export GOPATH=$H/go" >> $H/.profile
+echo 'export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin' >> $H/.profile
+echo 'alias ls="ls -lAF --color=auto"' >> $H/.bashrc
+source $H/.profile
+
+mkdir $GOPATH
+cd $GOPATH
+go get -u github.com/tools/godep
+
+echo ":::: Installing garden-linux..."
+git clone https://github.com/cloudfoundry-incubator/garden-linux \
+          $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+echo 'Godep Restoring...'
+godep restore || godep restore # https://www.pivotaltracker.com/n/projects/1158420/stories/89281608
+echo 'Running make...'
+make
+echo 'Building garden-linux...'
+mkdir -p $H/garden/bin
+go build -a -tags daemon -o $H/garden/bin/garden-linux
+ln -s $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin $H/garden/libexec
+ln -s $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton $H/garden/
+
+echo ":::: Linking garden-acceptance-tests..."
+mkdir -p $GOPATH/src/github.com/cloudfoundry-incubator/
+ln -s /vagrant $GOPATH/src/github.com/cloudfoundry-incubator/garden-acceptance
+
+go install github.com/onsi/ginkgo/ginkgo
+
+chown -R vagrant:vagrant $GOPATH

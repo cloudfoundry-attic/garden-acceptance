@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -e
+[ -z $DEBUG ] || set -x && export DEBUG
+
+DIR="$(dirname $0)/../vagrant/tmp"
+
+function get {
+  LOCAL_PATH="$DIR/$2"
+  if ! [ -f $LOCAL_PATH ]; then 
+    echo "Downloading $2"
+    curl --create-dirs -o $LOCAL_PATH $1
+  else
+    echo "Skipping download of $2 - found local copy"
+  fi
+}
+
+get https://storage.googleapis.com/golang/go1.4.2.linux-amd64.tar.gz go.tgz
+get http://cf-runtime-stacks.s3.amazonaws.com/lucid64.dev.tgz lucid64.tgz 

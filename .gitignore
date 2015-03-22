@@ -1,5 +1,5 @@
 *.test
 rootfs_images/*
-tmp/*
+vagrant/tmp/*
 !.gitkeep
 .vagrant

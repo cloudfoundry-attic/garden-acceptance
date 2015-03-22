@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -e
+[ -z $DEBUG ] || set -x
+
+export RUN_DIR=$HOME/garden
+export BIN_DIR=$RUN_DIR/bin
+export LIBEXEC_DIR=$RUN_DIR/libexec
+export DEPOT_DIR=$RUN_DIR/depot
+export SNAP_DIR=$RUN_DIR/snapshots
+export OVERLAY_DIR=$RUN_DIR/overlays
+export GRAPH_DIR=$RUN_DIR/graph
+export LOGS=$RUN_DIR/logs
+export ROOTFS_DIR=$RUN_DIR/rootfs/lucid64
+export PIDFILE=$RUN_DIR/pid
+
+case $1 in
+  start)
+    if [ -f "$PIDFILE" ]; then
+      pid=$(head -1 "$PIDFILE")
+
+      if [ -n "$pid" ] && [ -e /proc/$pid ]; then
+        echo "Garden is already running (pid: $pid); aborting."
+        exit 0
+      fi
+
+      echo "Removing stale pidfile..."
+      rm "$PIDFILE"
+    fi
+
+		echo "Starting server..."
+		/usr/bin/nohup /vagrant/vagrant/start > $LOGS 2>&1 &
+		until grep -vq "garden-linux.started" $LOGS; do sleep 1; done
+    ;;
+
+  stop)
+		if ! [ -f $PIDFILE ]; then
+			echo "PIDFILE $PIDFILE not found."
+			exit
+		fi
+
+    pid=$(cat $PIDFILE)
+
+		echo -n "Stopping server.."
+		kill $pid
+		while [ -e /proc/$pid ]; do sleep 1; echo -n "."; done
+		echo
+		rm "$PIDFILE"
+    ;;
+	
+	hardstop)
+		pid=$(cat $PIDFILE)
+		echo "Stopping server with kill -9..."
+		kill -9 $pid
+		rm "$PIDFILE"
+		;;
+	restart)
+		$0 stop
+		$0 start
+		;;
+  *)
+    echo "Usage: $0 {start|stop|restart|hardstop}"
+    ;;
+esac
+
