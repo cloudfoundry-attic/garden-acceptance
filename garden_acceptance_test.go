@@ -33,6 +33,15 @@ func pingRule(IP string) garden.NetOutRule {
 	}
 }
 
+func TCPRule(IP string, Port uint16) garden.NetOutRule {
+	return garden.NetOutRule{
+		Protocol: garden.ProtocolTCP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP(IP))},
+		Ports:    []garden.PortRange{garden.PortRangeFromPort(Port)},
+		Log:      true,
+	}
+}
+
 func runCommand(cmd string) (string, string) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -320,29 +329,38 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("can send TERM and KILL signals to processes (#83231270)", func() {
-				runBuffer := gbytes.NewBuffer()
+				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", `
 						trap 'echo "TERM received"' TERM
 						while true; do echo waiting; sleep 1; done
 					`},
-				}, recordedProcessIO(runBuffer))
+				}, recordedProcessIO(buffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				processBuffer := gbytes.NewBuffer()
-				process, err = container.Attach(process.ID(), recordedProcessIO(processBuffer))
-				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
+				Eventually(buffer, "2s").Should(gbytes.Say("TERM received"), "Process did not receive TERM")
 
-				Eventually(processBuffer, "2s").Should(gbytes.Say("waiting"), "Process is running")
-
-				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed(), "Process sent the TERM signal")
-				Eventually(processBuffer, "2s").Should(gbytes.Say("TERM received"), "Process received the TERM signal")
-
-				Eventually(processBuffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
+				Eventually(buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
 				Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
 				Ω(process.Wait()).Should(Equal(255))
 			})
+
+			PIt("avoids a TERM race condition (#89972162)", func(done Done) {
+				for i := 0; i < 100; i++ {
+					process, err := container.Run(garden.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
+					}, silentProcessIO)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
+					Ω(process.Wait()).Should(Equal(255))
+					println("Run ", i)
+				}
+				close(done)
+			}, 20.0)
 
 			It("allows the process to catch SIGCHLD (#85801952)", func() {
 				buffer := gbytes.NewBuffer()
@@ -427,15 +445,19 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
 		})
 
-		// It("can open outbound TCP connections (#82554270)", func() {
-		// 	container := createContainer(gardenClient, garden.ContainerSpec{})
-		// 	Ω(container.NetOut(tcpRule("8.8.8.8"))).ShouldNot(HaveOccurred())
-		//
-		// 	stdout = runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
-		// 	Ω(stdout).Should(ContainSubstring("64 bytes from"))
-		// 	Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
-		// })
-		//
+		It("logs outbound TCP connections (#90216342, #82554270)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{Handle: "Unique"})
+			Ω(container.NetOut(TCPRule("93.184.216.34", 80))).ShouldNot(HaveOccurred())
+
+			_, _ = runCommand("sudo sh -c 'echo > /var/log/syslog'")
+			stdout := runInContainerSuccessfully(container, "curl -s http://example.com -o -")
+			Ω(stdout).Should(ContainSubstring("Example Domain"))
+
+			stdout, _ = runCommand("sudo cat /var/log/syslog")
+			Ω(stdout).Should(ContainSubstring("Unique"))
+			Ω(stdout).Should(ContainSubstring("DST=93.184.216.34"))
+		})
+
 		It("respects network option to set default ip for a container (#75464982)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.0/30"})
 
@@ -564,7 +586,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	Describe("Metrics()", func() {
+	Describe("container.Metrics()", func() {
 		var metrics garden.Metrics
 		var err error
 
@@ -574,8 +596,23 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 		})
 
-		FIt("Returns the CPU Usage", func() {
+		It("Returns the CPU Usage", func() {
 			Ω(metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
+		})
+	})
+
+	Describe("garden.Metrics()", func() {
+		var metricsEntries map[string]garden.ContainerMetricsEntry
+		var err error
+
+		BeforeEach(func() {
+			_ = createContainer(gardenClient, garden.ContainerSpec{Handle: "foo"})
+			metricsEntries, err = gardenClient.BulkMetrics([]string{"foo"})
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("Returns the CPU Usage (#90241386)", func() {
+			Ω(metricsEntries["foo"].Metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
 		})
 	})
 
@@ -639,9 +676,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("mounting docker images", func() {
-		It("fails when creating a container who's rootfs does not have /bin/sh (#77771202)", func() {
-			_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/empty"})
-			Ω(err).Should(HaveOccurred())
+		It("can create a container without /bin/sh (#90521974)", func() {
+			_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/no-sh"})
+			Ω(err).ShouldNot(HaveOccurred())
 		})
 
 		It("mounts an ubuntu docker image, just fine", func() {

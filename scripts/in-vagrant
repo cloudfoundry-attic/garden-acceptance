@@ -9,9 +9,12 @@ echo ":::: Improving SSH.."
 echo "UseDNS no" >> /etc/ssh/sshd_config
 echo "GSSAPIAuthentication no" >> /etc/ssh/sshd_config
 
+echo ":::: Insecure sudo..."
+echo 'Defaults !env_reset' > /etc/sudoers.d/garden
+
 echo ":::: Updating..."
 apt-get update -qq -y > /dev/null
-apt-get install -qq -y git mercurial linux-image-extra-$(uname -r) > /dev/null
+apt-get install -qq -y git mercurial linux-image-extra-$(uname -r) quota > /dev/null
 
 echo ":::: Installing Go..."
 tar -C /usr/local -xzf /vagrant/vagrant/tmp/go.tgz

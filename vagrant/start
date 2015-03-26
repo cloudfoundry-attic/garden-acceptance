@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -e
-[ -z $DEBUG ] || set -x
+[ -z $D ] || set -x
 
 echo $$ > $PIDFILE
 exec $BIN_DIR/garden-linux \
