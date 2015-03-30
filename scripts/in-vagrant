@@ -3,7 +3,20 @@
 set -e
 [ -z $DEBUG ] || set -x && export DEBUG
 
+GARDEN_LINUX_REF=${1:-HEAD}
+
+function get {
+	local_path="/vagrant/vagrant/tmp/$2"
+	if ! [ -f $local_path ]; then 
+		echo "Downloading $2"
+		curl --create-dirs -o $local_path $1
+	else
+		echo "Skipping download of $2 - found local copy"
+	fi
+}
+
 export H=/home/vagrant
+cd $H
 
 echo ":::: Improving SSH.."
 echo "UseDNS no" >> /etc/ssh/sshd_config
@@ -16,6 +29,23 @@ echo ":::: Updating..."
 apt-get update -qq -y > /dev/null
 apt-get install -qq -y git mercurial linux-image-extra-$(uname -r) quota > /dev/null
 
+echo ":::: Downloading Default RootFS..."
+get http://cf-runtime-stacks.s3.amazonaws.com/lucid64.dev.tgz lucid64.tgz 
+
+# TODO: Don't regenerate rootfs'
+echo ":::: Installing Docker..."
+wget -qO- https://get.docker.com/ | sh
+echo ":::: Building FuseFS RootFS..."
+git clone git://github.com/cloudfoundry-incubator/diego-dockerfiles.git
+cd diego-dockerfiles/warden-ci
+make fuse-test-rootfs.tar 
+gzip -c fuse-test-rootfs.tar > /vagrant/vagrant/tmp/fusefs.tgz
+echo ":::: Building Nestable RootFS..."
+make ubuntu-test-rootfs.tar
+gzip -c ubuntu-test-rootfs.tar > /vagrant/vagrant/tmp/nestable.tgz
+
+echo ":::: Downloading Go..."
+get https://storage.googleapis.com/golang/go1.4.2.linux-amd64.tar.gz go.tgz
 echo ":::: Installing Go..."
 tar -C /usr/local -xzf /vagrant/vagrant/tmp/go.tgz
 
@@ -38,10 +68,11 @@ mkdir $GOPATH
 cd $GOPATH
 go get -u github.com/tools/godep
 
-echo ":::: Installing garden-linux..."
+echo ":::: Installing garden-linux $GARDEN_LINUX_REF..."
 git clone https://github.com/cloudfoundry-incubator/garden-linux \
           $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
 cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+git checkout $GARDEN_LINUX_REF
 echo 'Godep Restoring...'
 godep restore || godep restore # https://www.pivotaltracker.com/n/projects/1158420/stories/89281608
 echo 'Running make...'
@@ -59,3 +90,4 @@ ln -s /vagrant $GOPATH/src/github.com/cloudfoundry-incubator/garden-acceptance
 go install github.com/onsi/ginkgo/ginkgo
 
 chown -R vagrant:vagrant $GOPATH
+
