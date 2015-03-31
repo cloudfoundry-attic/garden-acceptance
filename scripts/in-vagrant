@@ -34,6 +34,7 @@ get http://cf-runtime-stacks.s3.amazonaws.com/lucid64.dev.tgz lucid64.tgz
 
 # TODO: Don't regenerate rootfs'
 echo ":::: Installing Docker..."
+# TODO: Replace with https://docs.docker.com/installation/binaries/
 wget -qO- https://get.docker.com/ | sh
 echo ":::: Building FuseFS RootFS..."
 git clone git://github.com/cloudfoundry-incubator/diego-dockerfiles.git
