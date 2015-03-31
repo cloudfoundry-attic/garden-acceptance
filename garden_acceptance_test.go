@@ -413,7 +413,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	})
 
 	Describe("iodaemon", func() {
-		FIt("supports a timeout when the process fails to link (#77842604)", func() {
+		It("supports a timeout when the process fails to link (#77842604)", func() {
 			iodaemon := "/home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton/bin/iodaemon"
 			stdout, stderr := runCommand("timeout 3s " + iodaemon + " -timeout 1s spawn /tmp/socketPath bash -c cat <&0; echo $?")
 			Expect(stderr).To(BeEmpty())
