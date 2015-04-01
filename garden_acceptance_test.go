@@ -347,8 +347,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(process.Wait()).Should(Equal(255))
 			})
 
-			PIt("avoids a TERM race condition (#89972162)", func(done Done) {
-				for i := 0; i < 100; i++ {
+			It("avoids a TERM race condition (#89972162)", func(done Done) {
+				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
@@ -357,7 +357,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 					Ω(process.Wait()).Should(Equal(255))
-					println("Run ", i)
 				}
 				close(done)
 			}, 20.0)
