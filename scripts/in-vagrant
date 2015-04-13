@@ -75,7 +75,7 @@ git clone https://github.com/cloudfoundry-incubator/garden-linux \
 cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
 git checkout $GARDEN_LINUX_REF
 echo 'Godep Restoring...'
-godep restore || godep restore # https://www.pivotaltracker.com/n/projects/1158420/stories/89281608
+godep restore
 echo 'Running make...'
 make
 echo 'Building garden-linux...'
