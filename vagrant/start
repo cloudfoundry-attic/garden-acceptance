@@ -7,9 +7,11 @@ echo $$ > $PIDFILE
 exec $BIN_DIR/garden-linux \
 	-listenNetwork=tcp \
 	-listenAddr=0.0.0.0:7777 \
+	-debugAddr=0.0.0.0:7776 \
 	-depot=$DEPOT_DIR \
 	-snapshots=$SNAP_DIR \
 	-overlays=$OVERLAY_DIR \
 	-graph=$GRAPH_DIR \
 	-bin=$LIBEXEC_DIR \
-	-rootfs=$ROOTFS_DIR
+	-rootfs=$ROOTFS_DIR \
+	$EXTRA_GARDEN_OPTS

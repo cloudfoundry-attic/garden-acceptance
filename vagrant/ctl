@@ -10,8 +10,8 @@ export DEPOT_DIR=$RUN_DIR/depot
 export SNAP_DIR=$RUN_DIR/snapshots
 export OVERLAY_DIR=$RUN_DIR/overlays
 export GRAPH_DIR=$RUN_DIR/graph
-export LOGS=$RUN_DIR/logs
 export ROOTFS_DIR=$RUN_DIR/rootfs/lucid64
+export LOGS=$RUN_DIR/logs
 export PIDFILE=$RUN_DIR/pid
 
 case $1 in
