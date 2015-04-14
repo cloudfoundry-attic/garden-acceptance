@@ -1,5 +1,7 @@
 # vim: set ft=ruby
 
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'virtualbox'
+
 Vagrant.configure("2") do |config|
   config.vm.hostname = "garden"
   config.vm.box = "ubuntu/trusty64"
