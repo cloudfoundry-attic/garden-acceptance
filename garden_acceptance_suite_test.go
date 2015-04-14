@@ -9,5 +9,5 @@ import (
 
 func TestGardenAcceptance(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "GardenAcceptance Suite")
+	RunSpecs(t, "Garden Acceptance Suite")
 }
