@@ -11,6 +11,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -814,5 +815,4 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			runCommand("sudo rm -f /var/bindmount-test")
 		})
 	})
-
 })
