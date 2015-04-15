@@ -18,5 +18,5 @@ Vagrant.configure("2") do |config|
     vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
   end
 
-  config.vm.provision "shell", path: "scripts/in-vagrant", args: "2bec1d031420d9d6eef44dceca19e717b2471d33"
+  config.vm.provision "shell", path: "scripts/in-vagrant", args: "9f0d33ac60824b6f4fbff235cbee230ccf7d11e2"
 end

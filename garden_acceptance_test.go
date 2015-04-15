@@ -156,6 +156,15 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
+	It("can run an empty container (#91423716)", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/vagrant/rootfs/empty"})
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{Path: "/hello"}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).Should(gbytes.Say("hello"))
+	})
+
 	Describe("A container", func() {
 		var container garden.Container
 
@@ -259,7 +268,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					}
 				})
 			})
-
 		})
 
 		Context("with initial properties", func() {
