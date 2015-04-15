@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -564,6 +567,25 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		It("fails when attempting to delete a non-existant container (#86044470)", func() {
 			err := gardenClient.Destroy("asdf")
 			Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "asdf"}))
+		})
+
+		It("does not leak network namespaces (Bug #91423716)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
+			info, err := container.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			pidFile, err := os.Open(filepath.Join(info.ContainerPath, "run", "wshd.pid"))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			var pid int
+			_, err = fmt.Fscanf(pidFile, "%d", &pid)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = gardenClient.Destroy(container.Handle())
+			Ω(err).ShouldNot(HaveOccurred())
+
+			stdout, _ := runCommand("ip netns list")
+			Ω(stdout).ShouldNot(ContainSubstring(strconv.Itoa(pid)))
 		})
 	})
 
