@@ -108,6 +108,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		destroyAllContainers(gardenClient)
 	})
 
+	AfterEach(func() {
+		destroyAllContainers(gardenClient)
+	})
+
 	Describe("when garden is running in a container,", func() {
 		var outerContainer garden.Container
 		nestedServerOutput := gbytes.NewBuffer()
@@ -762,10 +766,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("Fusefs", func() {
 		var container garden.Container
-
-		AfterEach(func() {
-			destroyAllContainers(gardenClient)
-		})
 
 		It("can mount the fusefs", func() {
 			container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: "/home/vagrant/garden/rootfs/fusefs"})
