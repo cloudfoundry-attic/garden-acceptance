@@ -46,26 +46,26 @@ func TCPRule(IP string, Port uint16) garden.NetOutRule {
 	}
 }
 
-func runCommand(cmd string) (string, string) {
+func runCommand(cmd string) (string, string, error) {
 	var stdout, stderr bytes.Buffer
 
 	command := exec.Command("sh", "-c", cmd)
 	command.Stdout = &stdout
 	command.Stderr = &stderr
-	command.Run()
+	err := command.Run()
 
-	return stdout.String(), stderr.String()
+	return stdout.String(), stderr.String(), err
 }
 
-func runInContainer(container garden.Container, cmd string) (string, string) {
+func runInContainer(container garden.Container, cmd string) (string, string, error) {
 	info, _ := container.Info()
 	command := fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd)
 	return runCommand(command)
 }
 
 func runInContainerSuccessfully(container garden.Container, cmd string) string {
-	stdout, stderr := runInContainer(container, cmd)
-	Ω(stderr).Should(Equal(""))
+	stdout, _, err := runInContainer(container, cmd)
+	Ω(err).ShouldNot(HaveOccurred())
 	return stdout
 }
 
@@ -91,14 +91,14 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	var gardenClient client.Client
 
 	BeforeSuite(func() {
-		stdout, stderr := runCommand("sudo /vagrant/vagrant/ctl restart")
-		Ω(stderr).Should(Equal(""))
+		stdout, _, err := runCommand("sudo /vagrant/vagrant/ctl restart")
+		Ω(err).ShouldNot(HaveOccurred())
 		Ω(stdout).Should(ContainSubstring("Starting server"))
 	})
 
 	AfterSuite(func() {
-		stdout, stderr := runCommand("sudo /vagrant/vagrant/ctl stop")
-		Ω(stderr).Should(Equal(""))
+		stdout, _, err := runCommand("sudo /vagrant/vagrant/ctl stop")
+		Ω(err).ShouldNot(HaveOccurred())
 		Ω(stdout).Should(ContainSubstring("Stopping server"))
 	})
 
@@ -113,7 +113,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("when garden is running in a container,", func() {
 		var outerContainer garden.Container
-		nestedServerOutput := gbytes.NewBuffer()
 
 		BeforeEach(func() {
 			outerContainer = createContainer(gardenClient, garden.ContainerSpec{
@@ -127,6 +126,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				},
 			})
 
+			nestedServerOutput := gbytes.NewBuffer()
 			_, err := outerContainer.Run(garden.ProcessSpec{
 				Path: "sh",
 				User: "root",
@@ -154,8 +154,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			info, err := outerContainer.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			stdout, stderr := runCommand(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
-
+			stdout, stderr, err := runCommand(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
+			Ω(err).ShouldNot(HaveOccurred())
 			Ω(stderr).Should(Equal(""), "Curl STDERR")
 			Ω(stdout).Should(HavePrefix("{\"Handle\":"), "Curl STDOUT")
 			Ω(gardenClient.Destroy(outerContainer.Handle())).Should(Succeed())
@@ -429,8 +429,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	Describe("iodaemon", func() {
 		It("supports a timeout when the process fails to link (#77842604)", func() {
 			iodaemon := "/home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton/bin/iodaemon"
-			stdout, stderr := runCommand("timeout 3s " + iodaemon + " -timeout 1s spawn /tmp/socketPath bash -c cat <&0; echo $?")
-			Ω(stderr).To(BeEmpty())
+			stdout, _, err := runCommand("timeout 3s " + iodaemon + " -timeout 1s spawn /tmp/socketPath bash -c cat <&0; echo $?")
+			Ω(err).ShouldNot(HaveOccurred())
 			Ω(stdout).NotTo(ContainSubstring("124"), "124 means `timeout` timed out.")
 		})
 	})
@@ -442,11 +442,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			_, err = container.Run(lsProcessSpec, silentProcessIO)
 			Ω(err).ShouldNot(HaveOccurred())
 		}
+
 		info, err := container.Info()
 		Ω(err).ShouldNot(HaveOccurred())
 		processesPath := info.ContainerPath + "/processes"
-		stdout, stderr := runCommand("cd " + processesPath + " && ls *.sock")
-		Ω(stdout).Should(BeEmpty())
+
+		_, stderr, _ := runCommand("cd " + processesPath + " && ls *.sock")
+
 		Ω(stderr).Should(ContainSubstring("No such file or directory"))
 	})
 
@@ -472,11 +474,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{Handle: "Unique"})
 			Ω(container.NetOut(TCPRule("93.184.216.34", 80))).ShouldNot(HaveOccurred())
 
-			_, _ = runCommand("sudo sh -c 'echo > /var/log/syslog'")
+			_, _, err := runCommand("sudo sh -c 'echo > /var/log/syslog'")
+			Ω(err).ShouldNot(HaveOccurred())
 			stdout := runInContainerSuccessfully(container, "curl -s http://example.com -o -")
 			Ω(stdout).Should(ContainSubstring("Example Domain"))
 
-			stdout, _ = runCommand("sudo cat /var/log/syslog")
+			stdout, _, err = runCommand("sudo cat /var/log/syslog")
+			Ω(err).ShouldNot(HaveOccurred())
 			Ω(stdout).Should(ContainSubstring("Unique"))
 			Ω(stdout).Should(ContainSubstring("DST=93.184.216.34"))
 		})
@@ -523,9 +527,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("When the server is restarted", func() {
 		restartGarden := func() {
-			stdout, stderr := runCommand("sudo /vagrant/vagrant/ctl restart")
+			stdout, _, err := runCommand("sudo /vagrant/vagrant/ctl restart")
+			Ω(err).ShouldNot(HaveOccurred())
 			Ω(stdout).Should(ContainSubstring("Starting server"))
-			Ω(stderr).Should(Equal(""))
 		}
 
 		It("continues to run the containers", func() {
@@ -587,7 +591,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			err = gardenClient.Destroy(container.Handle())
 			Ω(err).ShouldNot(HaveOccurred())
 
-			stdout, _ := runCommand("ip netns list")
+			stdout, _, err := runCommand("ip netns list")
+			Ω(err).ShouldNot(HaveOccurred())
 			Ω(stdout).ShouldNot(ContainSubstring(strconv.Itoa(pid)))
 		})
 	})
@@ -801,7 +806,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	Describe("BindMounts", func() {
 		It("mounts a read-only BindMount (#75464648)", func() {
-			runCommand("/usr/bin/sudo rm -f /var/bindmount-test")
+			runCommand("sudo rm -f /var/bindmount-test")
 
 			container := createContainer(gardenClient, garden.ContainerSpec{
 				BindMounts: []garden.BindMount{
@@ -816,7 +821,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readonly")
 			Ω(stdout).Should(ContainSubstring("bindmount-test"))
 
-			stdout, stderr := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
+			_, stderr, _ := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
 			Ω(stderr).Should(ContainSubstring("Read-only file system"))
 
 			runCommand("sudo rm -f /var/bindmount-test")
