@@ -47,8 +47,7 @@ func TCPRule(IP string, Port uint16) garden.NetOutRule {
 }
 
 func runCommand(cmd string) (string, string) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
 
 	command := exec.Command("sh", "-c", cmd)
 	command.Stdout = &stdout
@@ -431,8 +430,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		It("supports a timeout when the process fails to link (#77842604)", func() {
 			iodaemon := "/home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton/bin/iodaemon"
 			stdout, stderr := runCommand("timeout 3s " + iodaemon + " -timeout 1s spawn /tmp/socketPath bash -c cat <&0; echo $?")
-			Expect(stderr).To(BeEmpty())
-			Expect(stdout).NotTo(ContainSubstring("124"), "124 means `timeout` timed out.")
+			Ω(stderr).To(BeEmpty())
+			Ω(stdout).NotTo(ContainSubstring("124"), "124 means `timeout` timed out.")
 		})
 	})
 
@@ -731,7 +730,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(process.Wait()).Should(Equal(0))
 		})
 
-		It("mounts a none-ubuntu docker image, just fine", func() {
+		It("mounts a non-ubuntu docker image, just fine", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///onsi/grace-busybox"})
 			process, err := container.Run(lsProcessSpec, silentProcessIO)
 			Ω(err).ShouldNot(HaveOccurred())
