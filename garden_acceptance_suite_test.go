@@ -62,36 +62,31 @@ func pingRule(ip string) garden.NetOutRule {
 	}
 }
 
-func TCPRule(IP string, Port uint16) garden.NetOutRule {
-	return garden.NetOutRule{
-		Protocol: garden.ProtocolTCP,
-		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP(IP))},
-		Ports:    []garden.PortRange{garden.PortRangeFromPort(Port)},
-		Log:      true,
-	}
-}
-
 func runCommand(cmd string) (string, string, error) {
 	var stdout, stderr bytes.Buffer
-
 	command := exec.Command("sh", "-c", cmd)
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	err := command.Run()
-
 	return stdout.String(), stderr.String(), err
 }
 
 func runInContainer(container garden.Container, cmd string) (string, string, error) {
-	info, _ := container.Info()
-	command := fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd)
-	return runCommand(command)
+	info, err := container.Info()
+	Ω(err).ShouldNot(HaveOccurred())
+	return runCommand(fmt.Sprintf("cd %v && sudo ./bin/wsh %v", info.ContainerPath, cmd))
 }
 
 func runInContainerSuccessfully(container garden.Container, cmd string) string {
 	stdout, _, err := runInContainer(container, cmd)
 	Ω(err).ShouldNot(HaveOccurred())
 	return stdout
+}
+
+func createContainer(client garden.Client, spec garden.ContainerSpec) garden.Container {
+	container, err := client.Create(spec)
+	Ω(err).ShouldNot(HaveOccurred(), fmt.Sprintf("Error while creating container with spec: %+v", spec))
+	return container
 }
 
 func destroyAllContainers(client client.Client) {
@@ -102,12 +97,4 @@ func destroyAllContainers(client client.Client) {
 		err = client.Destroy(container.Handle())
 		Ω(err).ShouldNot(HaveOccurred(), fmt.Sprintf("Error while destroying container %+v", container.Handle()))
 	}
-}
-
-func createContainer(client garden.Client, spec garden.ContainerSpec) (container garden.Container) {
-	container, err := client.Create(spec)
-	Ω(err).ShouldNot(
-		HaveOccurred(),
-		fmt.Sprintf("Error while creating container with spec: %+v", spec))
-	return
 }

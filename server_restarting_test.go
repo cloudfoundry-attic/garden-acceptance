@@ -20,7 +20,7 @@ var _ = Describe("When the server is restarted", func() {
 		By("Setup containers and restart garden.")
 		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
 		container2 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
-		Ω(container.NetOut(pingRule("8.8.8.8"))).ShouldNot(HaveOccurred())
+		Ω(container.NetOut(pingRule("8.8.8.8"))).Should(Succeed())
 
 		restartGarden()
 

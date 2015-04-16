@@ -1,6 +1,8 @@
 package garden_acceptance_test
 
 import (
+	"net"
+
 	"github.com/cloudfoundry-incubator/garden"
 
 	. "github.com/onsi/ginkgo"
@@ -18,7 +20,7 @@ var _ = Describe("networking", func() {
 
 	It("can open outbound ICMP connections (#85601268)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
-		Ω(container.NetOut(pingRule("8.8.8.8"))).ShouldNot(HaveOccurred())
+		Ω(container.NetOut(pingRule("8.8.8.8"))).Should(Succeed())
 
 		stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
 		Ω(stdout).Should(ContainSubstring("64 bytes from"))
@@ -27,7 +29,7 @@ var _ = Describe("networking", func() {
 
 	It("logs outbound TCP connections (#90216342, #82554270)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{Handle: "Unique"})
-		Ω(container.NetOut(TCPRule("93.184.216.34", 80))).ShouldNot(HaveOccurred())
+		Ω(container.NetOut(tcpRule("93.184.216.34", 80))).Should(Succeed())
 
 		_, _, err := runCommand("sudo sh -c 'echo > /var/log/syslog'")
 		Ω(err).ShouldNot(HaveOccurred())
@@ -63,7 +65,7 @@ var _ = Describe("networking", func() {
 	It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
 		container1 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
 		container2 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
-		Ω(container2.NetOut(pingRule("8.8.8.8"))).ShouldNot(HaveOccurred())
+		Ω(container2.NetOut(pingRule("8.8.8.8"))).Should(Succeed())
 
 		gardenClient.Destroy(container1.Handle())
 
@@ -79,3 +81,12 @@ var _ = Describe("networking", func() {
 		Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.0.0/24)"))
 	})
 })
+
+func tcpRule(ip string, port uint16) garden.NetOutRule {
+	return garden.NetOutRule{
+		Protocol: garden.ProtocolTCP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP(ip))},
+		Ports:    []garden.PortRange{garden.PortRangeFromPort(port)},
+		Log:      true,
+	}
+}
