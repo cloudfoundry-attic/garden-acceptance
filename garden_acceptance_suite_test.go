@@ -10,6 +10,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden/client"
+	"github.com/cloudfoundry-incubator/garden/client/connection"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -31,6 +32,17 @@ var _ = AfterSuite(func() {
 	stdout, _, err := runCommand("sudo /vagrant/vagrant/ctl stop")
 	Ω(err).ShouldNot(HaveOccurred())
 	Ω(stdout).Should(ContainSubstring("Stopping server"))
+})
+
+var gardenClient client.Client
+
+var _ = BeforeEach(func() {
+	gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
+	destroyAllContainers(gardenClient)
+})
+
+var _ = AfterEach(func() {
+	destroyAllContainers(gardenClient)
 })
 
 var lsProcessSpec = garden.ProcessSpec{Path: "ls", Args: []string{"-l", "/"}}

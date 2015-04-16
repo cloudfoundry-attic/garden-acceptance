@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden/client"
-	"github.com/cloudfoundry-incubator/garden/client/connection"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -18,17 +16,6 @@ import (
 )
 
 var _ = Describe("Garden Acceptance Tests", func() {
-	var gardenClient client.Client
-
-	BeforeEach(func() {
-		gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
-		destroyAllContainers(gardenClient)
-	})
-
-	AfterEach(func() {
-		destroyAllContainers(gardenClient)
-	})
-
 	It("can run an empty container (#91423716)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/vagrant/rootfs/empty"})
 		buffer := gbytes.NewBuffer()

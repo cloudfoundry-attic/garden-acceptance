@@ -2,25 +2,12 @@ package garden_acceptance_test
 
 import (
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden/client"
-	"github.com/cloudfoundry-incubator/garden/client/connection"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("bind_mounts", func() {
-	var gardenClient client.Client
-
-	BeforeEach(func() {
-		gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
-		destroyAllContainers(gardenClient)
-	})
-
-	AfterEach(func() {
-		destroyAllContainers(gardenClient)
-	})
-
 	It("mounts a read-only BindMount (#75464648)", func() {
 		runCommand("sudo rm -f /var/bindmount-test")
 

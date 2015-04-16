@@ -2,25 +2,12 @@ package garden_acceptance_test
 
 import (
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden/client"
-	"github.com/cloudfoundry-incubator/garden/client/connection"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("networking", func() {
-	var gardenClient client.Client
-
-	BeforeEach(func() {
-		gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
-		destroyAllContainers(gardenClient)
-	})
-
-	AfterEach(func() {
-		destroyAllContainers(gardenClient)
-	})
-
 	It("gives a better error message when NetOut is given port and no protocol (#87201436)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
 		err := container.NetOut(garden.NetOutRule{

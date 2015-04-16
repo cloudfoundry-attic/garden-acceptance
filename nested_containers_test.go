@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden/client"
-	"github.com/cloudfoundry-incubator/garden/client/connection"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -13,15 +11,9 @@ import (
 )
 
 var _ = PDescribe("nested containers", func() {
-	var (
-		gardenClient   client.Client
-		outerContainer garden.Container
-	)
+	var outerContainer garden.Container
 
 	BeforeEach(func() {
-		gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
-		destroyAllContainers(gardenClient)
-
 		outerContainer = createContainer(gardenClient, garden.ContainerSpec{
 			RootFSPath: "/home/vagrant/garden/rootfs/nestable",
 			Privileged: true,
@@ -55,10 +47,6 @@ var _ = PDescribe("nested containers", func() {
 		}, recordedProcessIO(nestedServerOutput))
 		Ω(err).ShouldNot(HaveOccurred(), "Error while running nested garden")
 		Eventually(nestedServerOutput).Should(gbytes.Say("garden-linux.started"))
-	})
-
-	AfterEach(func() {
-		destroyAllContainers(gardenClient)
 	})
 
 	It("can run a nested container (#83806940)", func() {
