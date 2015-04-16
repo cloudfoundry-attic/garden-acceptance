@@ -8,29 +8,34 @@ import (
 )
 
 var _ = Describe("bind_mounts", func() {
-	It("mounts a read-only BindMount (#75464648)", func() {
-		runCommand("sudo rm -f /var/bindmount-test")
+	It("can mount a read-only BindMount (#75464648)", func() {
+		preExistingFile := "old"
+		runCommand("sudo touch /var/" + preExistingFile)
+		newFile := "new"
+		runCommand("sudo rm -f /var/" + newFile)
 
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
 					SrcPath: "/var",
 					DstPath: "/home/vcap/readonly",
-					Mode:    garden.BindMountModeRO},
+					Mode:    garden.BindMountModeRO,
+				},
 			},
 		})
+		runCommand("sudo touch /var/" + newFile)
 
-		runCommand("sudo touch /var/bindmount-test")
 		stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readonly")
-		Ω(stdout).Should(ContainSubstring("bindmount-test"))
+		Ω(stdout).Should(ContainSubstring(preExistingFile))
+		Ω(stdout).Should(ContainSubstring(newFile))
 
-		_, stderr, _ := runInContainer(container, "rm /home/vcap/readonly/bindmount-test")
+		_, stderr, _ := runInContainer(container, "rm /home/vcap/readonly/"+preExistingFile)
 		Ω(stderr).Should(ContainSubstring("Read-only file system"))
-
-		runCommand("sudo rm -f /var/bindmount-test")
+		_, stderr, _ = runInContainer(container, "rm /home/vcap/readonly/"+newFile)
+		Ω(stderr).Should(ContainSubstring("Read-only file system"))
 	})
 
-	It("mounts a read/write BindMount (#75464648)", func() {
+	It("can mount a read/write BindMount (#75464648)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
@@ -43,12 +48,9 @@ var _ = Describe("bind_mounts", func() {
 		})
 
 		stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readwrite")
-		Ω(stdout).ShouldNot(ContainSubstring("bindmount-test"))
-
-		stdout = runInContainerSuccessfully(container, "touch /home/vcap/readwrite/bindmount-test")
+		Ω(stdout).ShouldNot(ContainSubstring("new_file"))
+		runInContainerSuccessfully(container, "touch /home/vcap/readwrite/new_file")
 		stdout = runInContainerSuccessfully(container, "ls -l /home/vcap/readwrite")
-		Ω(stdout).Should(ContainSubstring("bindmount-test"))
-
-		runCommand("sudo rm -f /var/bindmount-test")
+		Ω(stdout).Should(ContainSubstring("new_file"))
 	})
 })
