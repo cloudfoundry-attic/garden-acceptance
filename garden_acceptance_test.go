@@ -16,17 +16,17 @@ import (
 )
 
 var _ = Describe("Garden Acceptance Tests", func() {
-	It("can run an empty container (#91423716)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/vagrant/rootfs/empty"})
-		buffer := gbytes.NewBuffer()
-		process, err := container.Run(garden.ProcessSpec{Path: "/hello"}, recordedProcessIO(buffer))
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(process.Wait()).Should(Equal(0))
-		Ω(buffer).Should(gbytes.Say("hello"))
-	})
-
-	Describe("A container", func() {
+	Describe("a container", func() {
 		var container garden.Container
+
+		It("can be run with an (essentially) empty rootfs (#91423716)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/vagrant/rootfs/empty"})
+			buffer := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{Path: "/hello"}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0))
+			Ω(buffer).Should(gbytes.Say("hello"))
+		})
 
 		Context("that's privileged", func() {
 			BeforeEach(func() {
