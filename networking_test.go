@@ -80,6 +80,21 @@ var _ = Describe("networking", func() {
 		Ω(err).Should(HaveOccurred())
 		Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.0.0/24)"))
 	})
+
+	It("should allow configuration of MTU (#80221576)", func() {
+		container, err := gardenClient.Create(garden.ContainerSpec{
+			RootFSPath: "docker:///onsi/grace-busybox",
+		})
+		Ω(err).ShouldNot(HaveOccurred())
+
+		// -mtu=1499 is set in the garden-linux start script
+		stdout, _, err := runInContainer(container, "/sbin/ifconfig")
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(stdout).Should(ContainSubstring("MTU:1499"))
+		stdout, _, err = runCommand("/sbin/ifconfig")
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(stdout).Should(ContainSubstring("MTU:1499"))
+	})
 })
 
 func tcpRule(ip string, port uint16) garden.NetOutRule {
