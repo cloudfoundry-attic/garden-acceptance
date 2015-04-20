@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+IMAGES=("alice")
+
+for IMAGE in "${IMAGES[@]}"
+do
+  pushd $IMAGE
+    docker build -t cloudfoundry/garden-pm:${IMAGE} .
+  popd
+done
+
+docker push cloudfoundry/garden-pm
+
