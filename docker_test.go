@@ -62,4 +62,40 @@ var _ = Describe("docker docker docker", func() {
 	It("supports other registrys (#77226688)", func() {
 		createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker://quay.io/tammersaleh/testing"})
 	})
+
+	It("maintains permissions from the docker image (#91955652)", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-pm#alice"})
+
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(
+			garden.ProcessSpec{User: "vcap", Path: "touch", Args: []string{"/home/alice/not_me"}},
+			recordedProcessIO(buffer),
+		)
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).ShouldNot(Equal(0))
+		Ω(buffer).Should(gbytes.Say("touch: cannot touch '/home/alice/not_me': Permission denied"))
+
+		process, err = container.Run(
+			garden.ProcessSpec{User: "alice", Path: "touch", Args: []string{"/home/alice/me"}},
+			silentProcessIO,
+		)
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+
+		process, err = container.Run(
+			garden.ProcessSpec{User: "root", Path: "touch", Args: []string{"/var/i_am_root"}},
+			silentProcessIO,
+		)
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+
+		buffer = gbytes.NewBuffer()
+		process, err = container.Run(
+			garden.ProcessSpec{User: "alice", Path: "touch", Args: []string{"/i_am_not_root"}},
+			recordedProcessIO(buffer),
+		)
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).ShouldNot(Equal(0))
+		Ω(buffer).Should(gbytes.Say("touch: cannot touch '/i_am_not_root': Permission denied"))
+	})
 })
