@@ -186,17 +186,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
 			})
 
-			PIt("can run as an arbitrary user (#82838924)", func() {
-				stdout := runInContainerSuccessfully(container, "cat /etc/passwd")
-				Ω(stdout).Should(ContainSubstring("anotheruser"))
-
-				buffer := gbytes.NewBuffer()
-				process, err := container.Run(garden.ProcessSpec{Path: "whoami", User: "anotheruser", Privileged: false}, recordedProcessIO(buffer))
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(process.Wait()).Should(Equal(0))
-				Ω(buffer.Contents()).Should(ContainSubstring("anotheruser"))
-			})
-
 			It("can send TERM and KILL signals to processes (#83231270)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
