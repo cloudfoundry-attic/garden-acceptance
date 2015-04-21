@@ -6,13 +6,13 @@ set -e
 GARDEN_LINUX_REF=${1:-HEAD}
 
 function get {
-	local_path="/vagrant/vagrant/tmp/$2"
-	if ! [ -f $local_path ]; then
-		echo "Downloading $2"
-		curl --create-dirs -o $local_path $1
-	else
-		echo "Skipping download of $2 - found local copy"
-	fi
+  local_path="/vagrant/vagrant/tmp/$2"
+  if ! [ -f $local_path ]; then
+    echo "Downloading $2"
+    curl --create-dirs -o $local_path $1
+  else
+    echo "Skipping download of $2 - found local copy"
+  fi
 }
 
 export H=/home/vagrant
@@ -25,17 +25,26 @@ echo "GSSAPIAuthentication no" >> /etc/ssh/sshd_config
 echo ":::: Insecure sudo..."
 echo 'Defaults !env_reset' > /etc/sudoers.d/garden
 
-echo ":::: Updating..."
+echo ":::: Installing dependencies from apt..."
 apt-get update -qq -y > /dev/null
 apt-get install -qq -y git mercurial linux-image-extra-$(uname -r) quota > /dev/null
+
+if ! which docker > /dev/null
+then
+  echo ":::: Installing Docker..."
+  wget -qO- https://get.docker.com/ | sh
+fi
+
+echo ":::: Adding shell aliases..."
+echo 'alias ls="ls -lAF --color=auto"' >> $H/.bashrc
+
+echo ":::: Preparing directories..."
+mkdir -p $H/garden/{containers,snapshots,overlays,rootfs,depot,graph}
 
 echo ":::: Downloading Default RootFS..."
 get http://cf-runtime-stacks.s3.amazonaws.com/lucid64.dev.tgz lucid64.tgz
 
 # TODO: Don't regenerate rootfs'
-echo ":::: Installing Docker..."
-# TODO: Replace with https://docs.docker.com/installation/binaries/
-wget -qO- https://get.docker.com/ | sh
 echo ":::: Building FuseFS RootFS..."
 git clone git://github.com/cloudfoundry-incubator/diego-dockerfiles.git
 cd diego-dockerfiles/warden-ci
@@ -45,22 +54,15 @@ echo ":::: Building Nestable RootFS..."
 make ubuntu-test-rootfs.tar
 gzip -c ubuntu-test-rootfs.tar > /vagrant/vagrant/tmp/nestable.tgz
 
-echo ":::: Downloading Go..."
-get https://storage.googleapis.com/golang/go1.4.2.linux-amd64.tar.gz go.tgz
-echo ":::: Installing Go..."
-tar -C /usr/local -xzf /vagrant/vagrant/tmp/go.tgz
-
-echo ":::: Preparing directories..."
-mkdir -p $H/garden/{containers,snapshots,overlays,rootfs,depot,graph}
-
 echo ":::: Unpacking rootfs..."
 mkdir -p $H/garden/rootfs/{lucid64,nestable,fusefs}
 tar -C $H/garden/rootfs/lucid64  -xzpf /vagrant/vagrant/tmp/lucid64.tgz
 tar -C $H/garden/rootfs/nestable -xzpf /vagrant/vagrant/tmp/nestable.tgz
 tar -C $H/garden/rootfs/fusefs   -xzpf /vagrant/vagrant/tmp/fusefs.tgz
 
-echo ":::: Adding shell aliases..."
-echo 'alias ls="ls -lAF --color=auto"' >> $H/.bashrc
+echo ":::: Installing Go..."
+get https://storage.googleapis.com/golang/go1.4.2.linux-amd64.tar.gz go.tgz
+tar -C /usr/local -xzf /vagrant/vagrant/tmp/go.tgz
 
 echo ":::: Configuring GOPATH..."
 echo "export GOPATH=$H/go" >> $H/.profile
@@ -77,25 +79,24 @@ git clone https://github.com/cloudfoundry-incubator/garden-linux \
 cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
 git checkout $GARDEN_LINUX_REF
 
-echo 'Godep Restoring...'
+echo ':::: Godep Restoring...'
 godep restore
 
-echo 'Running make...'
+echo ':::: Running make...'
 make
 
-echo 'Building garden-linux...'
+echo ':::: Building garden-linux...'
 mkdir -p $H/garden/bin
 go build -a -tags daemon -o $H/garden/bin/garden-linux
 ln -s $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin $H/garden/libexec
 ln -s $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton $H/garden/
 
+echo ":::: Installing ginkgo..."
+go install github.com/onsi/ginkgo/ginkgo
+
 echo ":::: Linking garden-acceptance-tests..."
 mkdir -p $GOPATH/src/github.com/cloudfoundry-incubator/
 ln -s /vagrant $GOPATH/src/github.com/cloudfoundry-incubator/garden-acceptance
 
-echo ":::: Installing ginkgo..."
-go install github.com/onsi/ginkgo/ginkgo
-
 echo ":::: chowning GOPATH..."
 chown -R vagrant:vagrant $GOPATH
-
