@@ -10,7 +10,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = PDescribe("nested containers", func() {
+var _ = Describe("nested containers", func() {
 	var outerContainer garden.Container
 
 	BeforeEach(func() {
@@ -18,10 +18,10 @@ var _ = PDescribe("nested containers", func() {
 			RootFSPath: "/home/vagrant/garden/rootfs/nestable",
 			Privileged: true,
 			BindMounts: []garden.BindMount{
-				{SrcPath: "/var/vcap/packages/garden-linux/bin", DstPath: "/home/vcap/bin/", Mode: garden.BindMountModeRO},
-				{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin", DstPath: "/home/vcap/binpath/bin", Mode: garden.BindMountModeRO},
-				{SrcPath: "/var/vcap/packages/garden-linux/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton", DstPath: "/home/vcap/binpath/skeleton", Mode: garden.BindMountModeRO},
-				{SrcPath: "/var/vcap/packages/busybox", DstPath: "/home/vcap/rootfs", Mode: garden.BindMountModeRO},
+				{SrcPath: "/home/vagrant/garden/bin", DstPath: "/home/vcap/bin/"},
+				{SrcPath: "/home/vagrant/garden/libexec", DstPath: "/home/vcap/binpath/bin"},
+				{SrcPath: "/home/vagrant/garden/skeleton", DstPath: "/home/vcap/binpath/skeleton"},
+				{SrcPath: "/home/vagrant/garden/rootfs/nestable", DstPath: "/home/vcap/rootfs"},
 			},
 		})
 
@@ -33,6 +33,8 @@ var _ = PDescribe("nested containers", func() {
 			Args: []string{
 				"-c",
 				`mkdir -p /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
+				mount -t tmpfs tmpfs /tmp/containers;
+				mount -t tmpfs tmpfs /tmp/overlays;
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
 					-rootfs /home/vcap/rootfs \
@@ -53,10 +55,9 @@ var _ = PDescribe("nested containers", func() {
 		info, err := outerContainer.Info()
 		Ω(err).ShouldNot(HaveOccurred())
 
-		stdout, stderr, err := runCommand(fmt.Sprintf("curl -sSH \"Content-Type: application/json\" -XPOST http://%s:7778/containers -d '{}'", info.ContainerIP))
+		stdout, _, err := runCommand(fmt.Sprintf(`curl -sSH "Content-Type: application/json" -XPOST http://%s:7778/containers -d '{}'`, info.ContainerIP))
 		Ω(err).ShouldNot(HaveOccurred())
-		Ω(stderr).Should(Equal(""), "Curl STDERR")
-		Ω(stdout).Should(HavePrefix("{\"Handle\":"), "Curl STDOUT")
+		Ω(stdout).Should(HavePrefix("{\"Handle\":"))
 		Ω(gardenClient.Destroy(outerContainer.Handle())).Should(Succeed())
 	})
 })
