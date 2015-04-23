@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e
-
-[ -z $DEBUG ] || set -x && export DEBUG
-
-cd $GARDEN_LINUX_RELEASE_DIR
-vagrant halt
-

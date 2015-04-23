@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e
-
-[ -z $DEBUG ] || set -x && export DEBUG
-
-OUT=$(curl -sSH "Content-Type: application/json" -XGET http://127.0.0.1:7777/$1)
-[ -z $DEBUG ] || echo $OUT
-echo $OUT | jq '.'
