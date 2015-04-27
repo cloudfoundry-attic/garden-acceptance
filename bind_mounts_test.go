@@ -25,7 +25,7 @@ var _ = Describe("bind_mounts", func() {
 		})
 		runCommand("sudo touch /var/" + newFile)
 
-		stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readonly")
+		stdout := runInContainerSuccessfully(container, "ls /home/vcap/readonly")
 		Ω(stdout).Should(ContainSubstring(preExistingFile))
 		Ω(stdout).Should(ContainSubstring(newFile))
 
@@ -47,10 +47,10 @@ var _ = Describe("bind_mounts", func() {
 			},
 		})
 
-		stdout := runInContainerSuccessfully(container, "ls -l /home/vcap/readwrite")
+		stdout := runInContainerSuccessfully(container, "ls /home/vcap/readwrite")
 		Ω(stdout).ShouldNot(ContainSubstring("new_file"))
 		runInContainerSuccessfully(container, "touch /home/vcap/readwrite/new_file")
-		stdout = runInContainerSuccessfully(container, "ls -l /home/vcap/readwrite")
+		stdout = runInContainerSuccessfully(container, "ls /home/vcap/readwrite")
 		Ω(stdout).Should(ContainSubstring("new_file"))
 	})
 })
