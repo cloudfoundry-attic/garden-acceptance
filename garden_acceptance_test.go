@@ -138,7 +138,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			It("can CRUD properties", func() {
-				value, err := container.GetProperty("foo")
+				value, err := container.Property("foo")
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(value).Should(Equal("bar"))
 
@@ -151,7 +151,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				err = container.RemoveProperty("foo")
 				Ω(err).ShouldNot(HaveOccurred())
 
-				properties, err := container.GetProperties()
+				properties, err := container.Properties()
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(properties).Should(Equal(garden.Properties{"fiz": "buz"}))
@@ -167,7 +167,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				err := container.SetProperty("foo", "bar")
 				Ω(err).ShouldNot(HaveOccurred())
 
-				value, err := container.GetProperty("foo")
+				value, err := container.Property("foo")
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(value).Should(Equal("bar"))
 			})
