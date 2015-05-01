@@ -73,6 +73,9 @@ mkdir $GOPATH
 echo ":::: Installing godep..."
 go get -u github.com/tools/godep
 
+echo ":::: Installing gaol"
+go get -u github.com/xoebus/gaol
+
 echo ":::: Installing garden-linux $GARDEN_LINUX_REF..."
 git clone https://github.com/cloudfoundry-incubator/garden-linux \
           $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
