@@ -73,7 +73,7 @@ mkdir $GOPATH
 echo ":::: Installing godep..."
 go get -u github.com/tools/godep
 
-echo ":::: Installing gaol"
+echo ":::: Installing gaol..."
 go get -u github.com/xoebus/gaol
 
 echo ":::: Installing garden-linux $GARDEN_LINUX_REF..."
