@@ -45,7 +45,7 @@ var _ = AfterEach(func() {
 	destroyAllContainers(gardenClient)
 })
 
-var lsProcessSpec = garden.ProcessSpec{Path: "ls", Args: []string{"-l", "/"}}
+var lsProcessSpec = garden.ProcessSpec{User: "root", Path: "ls", Args: []string{"-l", "/"}}
 var silentProcessIO = garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
 
 func recordedProcessIO(buffer *gbytes.Buffer) garden.ProcessIO {

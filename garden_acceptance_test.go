@@ -2,7 +2,6 @@ package garden_acceptance_test
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,7 +21,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		It("can be run with an (essentially) empty rootfs (#91423716)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/vagrant/rootfs/empty"})
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{Path: "/hello"}, recordedProcessIO(buffer))
+			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/hello"}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(process.Wait()).Should(Equal(0))
 			Ω(buffer).Should(gbytes.Say("hello"))
@@ -37,6 +36,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				var nofile uint64 = 1234
 				output := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
+					User:   "root",
 					Path:   "sh",
 					Args:   []string{"-c", "ulimit -n"},
 					Limits: garden.ResourceLimits{Nofile: &nofile},
@@ -64,20 +64,20 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 					for _, dir := range directories {
 						foo = dir + "foo"
-						process, err = container.Run(garden.ProcessSpec{Path: "mkdir", Privileged: true, Args: []string{"-p", dir}}, silentProcessIO)
+						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "mkdir", Args: []string{"-p", dir}}, silentProcessIO)
 						Ω(err).ShouldNot(HaveOccurred(), "Error making "+dir)
 
-						process, err = container.Run(garden.ProcessSpec{Path: "sh", Privileged: true, Args: []string{"-c", "echo 'readlink -f $0' > " + foo}}, silentProcessIO)
+						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "sh", Args: []string{"-c", "echo 'readlink -f $0' > " + foo}}, silentProcessIO)
 						Ω(err).ShouldNot(HaveOccurred(), "Error running echo on "+foo)
 						Ω(process.Wait()).Should(Equal(0), "echo exited with bad error code.")
 
-						process, err = container.Run(garden.ProcessSpec{Path: "chmod", Privileged: true, Args: []string{"+x", foo}}, silentProcessIO)
+						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "chmod", Args: []string{"+x", foo}}, silentProcessIO)
 						Ω(err).ShouldNot(HaveOccurred(), "Error running chmod on "+foo)
 						Ω(process.Wait()).Should(Equal(0), "chmod +x "+foo+" exited with bad error code.")
 					}
 				})
 
-				It("sets the path correctly, when running privileged processes", func() {
+				It("sets the path correctly", func() {
 					var process garden.Process
 					var err error
 					var foo string
@@ -93,36 +93,12 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					for _, dir := range directories {
 						foo = dir + "foo"
 						buffer := gbytes.NewBuffer()
-						process, err = container.Run(garden.ProcessSpec{Path: "foo", Privileged: true}, recordedProcessIO(buffer))
+						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "foo"}, recordedProcessIO(buffer))
 						Ω(err).ShouldNot(HaveOccurred(), "Error running foo.")
 						Ω(process.Wait()).Should(Equal(0), "Foo exited with bad error code.")
 						Ω(string(buffer.Contents())).Should(Equal(foo + "\n"))
 
-						process, err = container.Run(garden.ProcessSpec{Path: "rm", Privileged: true, Args: []string{foo}}, silentProcessIO)
-						Ω(err).ShouldNot(HaveOccurred(), "Error running removing "+foo)
-						Ω(process.Wait()).Should(Equal(0), "rm "+foo+" exited with bad error code.")
-					}
-				})
-
-				It("sets the path correctly, when running unprivileged processes", func() {
-					var process garden.Process
-					var err error
-					var foo string
-					directories := []string{
-						"/usr/local/bin/",
-						"/usr/bin/",
-						"/bin/",
-					}
-					// run them
-					for _, dir := range directories {
-						foo = dir + "foo"
-						buffer := gbytes.NewBuffer()
-						process, err = container.Run(garden.ProcessSpec{Path: "foo", Privileged: false}, recordedProcessIO(buffer))
-						Ω(err).ShouldNot(HaveOccurred(), "Error running foo.")
-						Ω(process.Wait()).Should(Equal(0), "Foo exited with bad error code.")
-						Ω(string(buffer.Contents())).Should(Equal(foo + "\n"))
-
-						process, err = container.Run(garden.ProcessSpec{Path: "rm", Privileged: true, Args: []string{foo}}, silentProcessIO)
+						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "rm", Args: []string{foo}}, silentProcessIO)
 						Ω(err).ShouldNot(HaveOccurred(), "Error running removing "+foo)
 						Ω(process.Wait()).Should(Equal(0), "rm "+foo+" exited with bad error code.")
 					}
@@ -178,17 +154,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				container = createContainer(gardenClient, garden.ContainerSpec{Privileged: false})
 			})
 
-			It("defaults to running processes as vcap when unpriviledged", func() {
-				buffer := gbytes.NewBuffer()
-				process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: false}, recordedProcessIO(buffer))
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(process.Wait()).Should(Equal(0))
-				Ω(buffer.Contents()).Should(ContainSubstring("vcap"))
-			})
-
 			It("can send TERM and KILL signals to processes (#83231270)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
 					Path: "sh",
 					Args: []string{"-c", `
 						trap 'echo "TERM received"' TERM
@@ -208,6 +177,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			It("avoids a TERM race condition (#89972162)", func(done Done) {
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
+						User: "root",
 						Path: "sh",
 						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
 					}, silentProcessIO)
@@ -222,6 +192,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			It("allows the process to catch SIGCHLD (#85801952)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
 					Path: "sh",
 					Args: []string{"-c", `
 						trap 'echo "SIGCHLD received"' CHLD
@@ -236,27 +207,19 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				process.Wait()
 			})
 
-			It("can run privileged processes as root", func() {
+			It("can run processes as root", func() {
 				buffer := gbytes.NewBuffer()
-				process, err := container.Run(garden.ProcessSpec{Path: "whoami", Privileged: true}, recordedProcessIO(buffer))
+				process, err := container.Run(garden.ProcessSpec{User: "root", Path: "whoami"}, recordedProcessIO(buffer))
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(process.Wait()).Should(Equal(0))
 				Ω(buffer.Contents()).Should(ContainSubstring("root"))
 			})
 
-			It("can run unprivileged processes as fake root", func() {
-				stderr := gbytes.NewBuffer()
-				recorder := garden.ProcessIO{Stdout: GinkgoWriter, Stderr: io.MultiWriter(stderr, GinkgoWriter)}
-				process, err := container.Run(garden.ProcessSpec{Path: "cat", Args: []string{"/proc/vmallocinfo"}, User: "root", Privileged: false}, recorder)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(process.Wait()).ShouldNot(Equal(0))
-				Ω(stderr.Contents()).Should(ContainSubstring("Permission denied"), "Stderr")
-			})
-
-			It("can run unprivileged processes with rlimits", func() {
+			It("can run processes with rlimits", func() {
 				var nofile uint64 = 1234
 				output := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
+					User:   "root",
 					Path:   "sh",
 					Args:   []string{"-c", "ulimit -n"},
 					Limits: garden.ResourceLimits{Nofile: &nofile},
@@ -346,6 +309,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{
+			User: "vcap",
 			Path: "sh",
 			Args: []string{"-c", "printenv"},
 			Env: []string{

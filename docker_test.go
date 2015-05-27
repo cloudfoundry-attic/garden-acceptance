@@ -51,7 +51,7 @@ var _ = Describe("docker docker docker", func() {
 		buffer := gbytes.NewBuffer()
 		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/with-volume"})
 		process, err := container.Run(
-			garden.ProcessSpec{Path: "sh", Args: []string{"-c", "echo $PATH"}},
+			garden.ProcessSpec{User: "root", Path: "sh", Args: []string{"-c", "echo $PATH"}},
 			recordedProcessIO(buffer),
 		)
 		Ω(err).ShouldNot(HaveOccurred())
