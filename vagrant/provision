@@ -39,7 +39,7 @@ echo ":::: Adding shell aliases..."
 echo 'alias ls="ls -lAF --color=auto"' >> $H/.bashrc
 
 echo ":::: Preparing directories..."
-mkdir -p $H/garden/{containers,snapshots,overlays,rootfs,depot,graph}
+mkdir -p $H/garden/{containers,snapshots,rootfs,depot,graph}
 
 echo ":::: Downloading Default RootFS..."
 get http://cf-runtime-stacks.s3.amazonaws.com/lucid64.dev.tgz lucid64.tgz
