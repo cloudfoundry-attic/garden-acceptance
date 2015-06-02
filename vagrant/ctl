@@ -9,7 +9,7 @@ export LIBEXEC_DIR=$RUN_DIR/libexec
 export DEPOT_DIR=$RUN_DIR/depot
 export SNAP_DIR=$RUN_DIR/snapshots
 export GRAPH_DIR=$RUN_DIR/graph
-export ROOTFS_DIR=$RUN_DIR/rootfs/lucid64
+export ROOTFS_DIR=$RUN_DIR/rootfs/cflinuxfs2
 export LOGS=$RUN_DIR/logs
 export PIDFILE=$RUN_DIR/pid
 
