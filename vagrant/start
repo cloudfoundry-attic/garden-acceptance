@@ -10,7 +10,6 @@ exec $BIN_DIR/garden-linux \
   -debugAddr=0.0.0.0:7776 \
   -depot=$DEPOT_DIR \
   -snapshots=$SNAP_DIR \
-  -overlays=$OVERLAY_DIR \
   -graph=$GRAPH_DIR \
   -bin=$LIBEXEC_DIR \
   -rootfs=$ROOTFS_DIR \

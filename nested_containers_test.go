@@ -32,14 +32,12 @@ var _ = Describe("nested containers", func() {
 			Dir:  "/home/vcap",
 			Args: []string{
 				"-c",
-				`mkdir -p /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
+				`mkdir -p /tmp/containers /tmp/snapshots /tmp/graph;
 				mount -t tmpfs tmpfs /tmp/containers;
-				mount -t tmpfs tmpfs /tmp/overlays;
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
 					-rootfs /home/vcap/rootfs \
 					-depot /tmp/containers \
-					-overlays /tmp/overlays \
 					-snapshots /tmp/snapshots \
 					-graph /tmp/graph \
 					-disableQuotas \

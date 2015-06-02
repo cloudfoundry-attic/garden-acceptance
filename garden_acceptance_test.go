@@ -154,6 +154,22 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				container = createContainer(gardenClient, garden.ContainerSpec{Privileged: false})
 			})
 
+			It("allows containers to be destroyed when wshd isn't running", func() {
+				info, _ := container.Info()
+				pidFile, err := os.Open(filepath.Join(info.ContainerPath, "run", "wshd.pid"))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				var pid int
+				_, err = fmt.Fscanf(pidFile, "%d", &pid)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				_, _, err = runCommand("sudo kill -9 " + strconv.Itoa(pid))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				err = gardenClient.Destroy(container.Handle())
+				Ω(err).ShouldNot(HaveOccurred())
+			})
+
 			It("can send TERM and KILL signals to processes (#83231270)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{

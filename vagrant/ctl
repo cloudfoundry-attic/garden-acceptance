@@ -8,7 +8,6 @@ export BIN_DIR=$RUN_DIR/bin
 export LIBEXEC_DIR=$RUN_DIR/libexec
 export DEPOT_DIR=$RUN_DIR/depot
 export SNAP_DIR=$RUN_DIR/snapshots
-export OVERLAY_DIR=$RUN_DIR/overlays
 export GRAPH_DIR=$RUN_DIR/graph
 export ROOTFS_DIR=$RUN_DIR/rootfs/lucid64
 export LOGS=$RUN_DIR/logs
