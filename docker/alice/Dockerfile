@@ -1,3 +1,3 @@
-FROM phusion/baseimage
+FROM busybox
 
-RUN useradd -m alice
+RUN adduser -D alice
