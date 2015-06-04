@@ -4,7 +4,7 @@
 
 1. Install Vagrant and VirtualBox
 1. `vagrant up`
-1. `vagrant ssh -c /vagrant/vagrant/run_tests`
+1. `./scripts/test`
 
 ## Updating Docker images
 
