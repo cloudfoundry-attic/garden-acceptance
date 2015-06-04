@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -e
+
+GARDEN_LINUX_REF=$1
+
+PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
+
+H=/home/vagrant
+
+cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+git checkout $GARDEN_LINUX_REF
+
+echo ':::: Godep Restoring...'
+$GOPATH/bin/godep restore
+
+echo ':::: Running make...'
+make
+
+echo ':::: Building garden-linux...'
+mkdir -p $H/garden/bin
+go build -a -tags daemon -o $H/garden/bin/garden-linux
+rm -f $H/garden/libexec
+rm -f $H/garden/skeleton
+ln -s \
+  $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin \
+  $H/garden/libexec
+ln -s \
+  $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton \
+  $H/garden/

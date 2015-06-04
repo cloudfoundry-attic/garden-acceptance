@@ -80,20 +80,7 @@ go get -u github.com/xoebus/gaol
 echo ":::: Installing garden-linux $GARDEN_LINUX_REF..."
 git clone https://github.com/cloudfoundry-incubator/garden-linux \
           $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
-cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
-git checkout $GARDEN_LINUX_REF
-
-echo ':::: Godep Restoring...'
-godep restore
-
-echo ':::: Running make...'
-make
-
-echo ':::: Building garden-linux...'
-mkdir -p $H/garden/bin
-go build -a -tags daemon -o $H/garden/bin/garden-linux
-ln -s $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin $H/garden/libexec
-ln -s $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton $H/garden/
+/vagrant/vagrant/install_garden_linux $GARDEN_LINUX_REF
 
 echo ":::: Installing ginkgo..."
 go install github.com/onsi/ginkgo/ginkgo
