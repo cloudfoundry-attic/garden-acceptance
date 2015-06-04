@@ -55,7 +55,8 @@ make ubuntu-test-rootfs.tar
 gzip -c ubuntu-test-rootfs.tar > /vagrant/vagrant/tmp/nestable.tgz
 
 echo ":::: Unpacking rootfs..."
-mkdir -p $H/garden/rootfs/{cflinuxfs2,nestable,fusefs}
+mkdir -p $H/garden/rootfs/{alice,cflinuxfs2,nestable,fusefs}
+tar -C $H/garden/rootfs/alice      -xzpf /vagrant/rootfs/alice.tgz
 tar -C $H/garden/rootfs/cflinuxfs2 -xzpf /vagrant/vagrant/tmp/cflinuxfs2.tgz
 tar -C $H/garden/rootfs/nestable   -xzpf /vagrant/vagrant/tmp/nestable.tgz
 tar -C $H/garden/rootfs/fusefs     -xzpf /vagrant/vagrant/tmp/fusefs.tgz
