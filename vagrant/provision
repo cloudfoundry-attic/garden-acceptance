@@ -27,7 +27,19 @@ echo 'Defaults !env_reset' > /etc/sudoers.d/garden
 
 echo ":::: Installing dependencies from apt..."
 apt-get update -qq -y > /dev/null
-apt-get install -qq -y git mercurial linux-image-extra-$(uname -r) quota > /dev/null
+apt-get install -qq -y git mercurial pkg-config autoconf asciidoc xmlto linux-image-extra-$(uname -r) quota > /dev/null
+apt-get build-dep -qq -y btrfs-tools > /dev/null
+
+echo ":::: Installing btrfs-tools..."
+mkdir -p $H/btrfs
+cd $H/btrfs
+git clone git://git.kernel.org/pub/scm/linux/kernel/git/kdave/btrfs-progs.git
+cd btrfs-progs
+./autogen.sh
+./configure
+make
+make install
+cd $H
 
 if ! which docker > /dev/null
 then
@@ -40,6 +52,17 @@ echo 'alias ls="ls -lAF --color=auto"' >> $H/.bashrc
 
 echo ":::: Preparing directories..."
 mkdir -p $H/garden/{containers,snapshots,rootfs,depot,graph}
+
+echo ":::: Mounting btrfs volume..."
+mount_point=$H/garden/graph
+backing_store=$H/garden/btrfs_backing_store
+loopback_device=/dev/btrfs_loop
+
+dd if=/dev/zero of=$backing_store bs=1M count=8000
+mknod $loopback_device b 7 200
+losetup $loopback_device $backing_store
+mkfs.btrfs $backing_store
+mount -t btrfs $loopback_device $mount_point
 
 echo ":::: Downloading Default RootFS..."
 get http://cf-runtime-stacks.s3.amazonaws.com/cflinuxfs2.dev.tgz cflinuxfs2.tgz
