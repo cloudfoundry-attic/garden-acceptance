@@ -71,6 +71,7 @@ func runCommand(cmd string) (string, string, error) {
 	return stdout.String(), stderr.String(), err
 }
 
+// TODO: Make user an explicit argument, always
 func runInContainer(container garden.Container, cmd string) (string, string, error) {
 	info, err := container.Info()
 	Ω(err).ShouldNot(HaveOccurred())

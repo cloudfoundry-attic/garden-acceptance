@@ -19,7 +19,7 @@ var _ = Describe("networking", func() {
 	})
 
 	It("can open outbound ICMP connections (#85601268)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{})
+		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
 		Ω(container.NetOut(pingRule("8.8.8.8"))).Should(Succeed())
 
 		stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
@@ -43,18 +43,18 @@ var _ = Describe("networking", func() {
 	})
 
 	It("respects network option to set default ip for a container (#75464982)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.0/30"})
+		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.0/30"})
 
-		stdout := runInContainerSuccessfully(container, "ifconfig")
+		stdout := runInContainerSuccessfully(container, "-user root ifconfig")
 		Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
 		Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
 
-		stdout = runInContainerSuccessfully(container, "route | grep default")
+		stdout = runInContainerSuccessfully(container, "-user root route | grep default")
 		Ω(stdout).Should(ContainSubstring("10.2.0.2"))
 	})
 
 	It("allows containers to talk to each other (#75464982)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
+		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.1/24"})
 		_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
 
 		stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 10.2.0.2")
@@ -63,8 +63,8 @@ var _ = Describe("networking", func() {
 	})
 
 	It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
-		container1 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
-		container2 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
+		container1 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.1/24"})
+		container2 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.2/24"})
 		Ω(container2.NetOut(pingRule("8.8.8.8"))).Should(Succeed())
 
 		gardenClient.Destroy(container1.Handle())

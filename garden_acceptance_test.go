@@ -48,23 +48,19 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			})
 
 			Context("and a full set of executables", func() {
-				var process garden.Process
-				var err error
-				var foo string
+				directories := []string{
+					"/usr/local/sbin/",
+					"/usr/local/bin/",
+					"/usr/sbin/",
+					"/usr/bin/",
+					"/sbin/",
+					"/bin/",
+				}
 
 				BeforeEach(func() {
-					directories := []string{
-						"/usr/local/sbin/",
-						"/usr/local/bin/",
-						"/usr/sbin/",
-						"/usr/bin/",
-						"/sbin/",
-						"/bin/",
-					}
-
 					for _, dir := range directories {
-						foo = dir + "foo"
-						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "mkdir", Args: []string{"-p", dir}}, silentProcessIO)
+						foo := dir + "foo"
+						process, err := container.Run(garden.ProcessSpec{User: "root", Path: "mkdir", Args: []string{"-p", dir}}, silentProcessIO)
 						Ω(err).ShouldNot(HaveOccurred(), "Error making "+dir)
 
 						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "sh", Args: []string{"-c", "echo 'readlink -f $0' > " + foo}}, silentProcessIO)
@@ -77,25 +73,13 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					}
 				})
 
-				It("sets the path correctly", func() {
-					var process garden.Process
-					var err error
-					var foo string
-					directories := []string{
-						"/usr/local/sbin/",
-						"/usr/local/bin/",
-						"/usr/sbin/",
-						"/usr/bin/",
-						"/sbin/",
-						"/bin/",
-					}
-					// run them
+				PIt("sets the path correctly", func() {
 					for _, dir := range directories {
-						foo = dir + "foo"
+						foo := dir + "foo"
 						buffer := gbytes.NewBuffer()
-						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "foo"}, recordedProcessIO(buffer))
-						Ω(err).ShouldNot(HaveOccurred(), "Error running foo.")
-						Ω(process.Wait()).Should(Equal(0), "Foo exited with bad error code.")
+						process, err := container.Run(garden.ProcessSpec{User: "root", Path: "foo"}, recordedProcessIO(buffer))
+						Ω(err).ShouldNot(HaveOccurred(), "Error running "+foo)
+						Ω(process.Wait()).Should(Equal(0), foo+" exited with bad error code.")
 						Ω(string(buffer.Contents())).Should(Equal(foo + "\n"))
 
 						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "rm", Args: []string{foo}}, silentProcessIO)
@@ -170,7 +154,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			It("can send TERM and KILL signals to processes (#83231270)", func() {
+			PIt("can send TERM and KILL signals to processes (#83231270)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
@@ -182,7 +166,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				}, recordedProcessIO(buffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
+				Eventually(func() error {
+					return process.Signal(garden.SignalTerminate)
+				}).Should(Succeed())
 				Eventually(buffer, "2s").Should(gbytes.Say("TERM received"), "Process did not receive TERM")
 
 				Eventually(buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
@@ -190,7 +176,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(process.Wait()).Should(Equal(255))
 			})
 
-			It("avoids a TERM race condition (#89972162)", func(done Done) {
+			PIt("avoids a TERM race condition (#89972162)", func(done Done) {
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "root",
@@ -205,7 +191,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				close(done)
 			}, 20.0)
 
-			It("allows the process to catch SIGCHLD (#85801952)", func() {
+			PIt("allows the process to catch SIGCHLD (#85801952)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
@@ -259,9 +245,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 	It("cleans up after running processes (#89969450)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
-		var err error
 		for i := 0; i < 10; i++ {
-			_, err = container.Run(lsProcessSpec, silentProcessIO)
+			_, err := container.Run(lsProcessSpec, silentProcessIO)
 			Ω(err).ShouldNot(HaveOccurred())
 		}
 
@@ -269,9 +254,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 		processesPath := info.ContainerPath + "/processes"
 
-		_, stderr, _ := runCommand("cd " + processesPath + " && ls *.sock")
-
-		Ω(stderr).Should(ContainSubstring("No such file or directory"))
+		Eventually(func() string {
+			_, stderr, _ := runCommand("cd " + processesPath + " && ls *.sock")
+			return stderr
+		}).Should(ContainSubstring("No such file or directory"))
 	})
 
 	Describe("Destroy", func() {
@@ -313,7 +299,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	It("supports setting environment variables on the container (#77303456)", func() {
+	PIt("supports setting environment variables on the container (#77303456)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			Env: []string{
 				"ROOT_ENV=A",
