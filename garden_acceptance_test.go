@@ -154,7 +154,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			PIt("can send TERM and KILL signals to processes (#83231270)", func() {
+			It("can send TERM and KILL signals to processes (#83231270)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
@@ -176,7 +176,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(process.Wait()).Should(Equal(255))
 			})
 
-			PIt("avoids a TERM race condition (#89972162)", func(done Done) {
+			It("avoids a TERM race condition (#89972162)", func() {
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "root",
@@ -188,10 +188,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 					Ω(process.Wait()).Should(Equal(255))
 				}
-				close(done)
-			}, 20.0)
+			}, 60.0) // TODO: Decrease this once signaling has been improved?
 
-			PIt("allows the process to catch SIGCHLD (#85801952)", func() {
+			It("allows the process to catch SIGCHLD (#85801952)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
