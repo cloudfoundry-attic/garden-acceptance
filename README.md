@@ -8,7 +8,7 @@
 
 ## Updating garden-linux
 
-1. `sudo /vagrant/vagrant/install_garden_linux <SHA>`
+Run `sudo /vagrant/vagrant/install_garden_linux <SHA>` on the vagrant machine.
 
 ## Updating Docker images
 
