@@ -20,6 +20,7 @@ case $1 in
 
       if [ -e /proc/$pid ]; then
         echo "Garden is already running (pid: $pid); aborting."
+        exit 1
 			else
 				echo "Removing stale pidfile..."
 				rm "$PIDFILE"
