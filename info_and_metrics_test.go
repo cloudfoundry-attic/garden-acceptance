@@ -38,6 +38,22 @@ var _ = Describe("info and metrics", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
 		})
+
+		It("returns network statistics", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
+			preRequestMetrics, err := container.Metrics()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process, err := container.Run(garden.ProcessSpec{User: "vcap", Path: "curl", Args: []string{"http://cloudfoundry.org"}}, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0))
+
+			postRequestMetrics, err := container.Metrics()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(postRequestMetrics.NetworkStat.TxBytes).Should(BeNumerically(">", preRequestMetrics.NetworkStat.TxBytes))
+			Ω(postRequestMetrics.NetworkStat.RxBytes).Should(BeNumerically(">", preRequestMetrics.NetworkStat.RxBytes))
+		})
 	})
 
 	Describe("Client.BulkMetrics()", func() {
