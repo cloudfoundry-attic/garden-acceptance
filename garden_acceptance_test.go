@@ -298,7 +298,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	PIt("supports setting environment variables on the container (#77303456)", func() {
+	It("supports setting environment variables on the container (Diego: #77303456, Garden: #96893340)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			Env: []string{
 				"ROOT_ENV=A",
@@ -324,8 +324,8 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
 		Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
-		Ω(buffer.Contents()).Should(ContainSubstring("HOME=/home/vcap"))
-		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/nowhere"))
+		Ω(buffer.Contents()).Should(ContainSubstring("HOME=/nowhere"))
+		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/home/vcap"))
 		Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
 		Ω(buffer.Contents()).Should(ContainSubstring("PASSWORD=;$*@='\"$(pwd)!!"))
 	})
