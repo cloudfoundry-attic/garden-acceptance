@@ -29,7 +29,7 @@ var _ = Describe("user mapping", func() {
 		Ω(process.Wait()).Should(Equal(0))
 
 		process, err = container.Run(
-			garden.ProcessSpec{User: "root", Path: "touch", Args: []string{"/var/i_am_root"}},
+			garden.ProcessSpec{User: "root", Path: "touch", Args: []string{"/i_am_root"}},
 			silentProcessIO,
 		)
 		Ω(err).ShouldNot(HaveOccurred())
