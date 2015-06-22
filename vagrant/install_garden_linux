@@ -9,6 +9,7 @@ PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 H=/home/vagrant
 
 cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+git fetch
 git checkout $GARDEN_LINUX_REF
 
 echo ':::: Godep Restoring...'
