@@ -24,8 +24,8 @@ go build -a -tags daemon -o $H/garden/bin/garden-linux
 rm -f $H/garden/libexec
 rm -f $H/garden/skeleton
 ln -s \
-  $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bin \
+  $H/go/src/github.com/cloudfoundry-incubator/garden-linux/linux_backend/bin \
   $H/garden/libexec
 ln -s \
-  $H/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton \
+  $H/go/src/github.com/cloudfoundry-incubator/garden-linux/linux_backend/skeleton \
   $H/garden/
