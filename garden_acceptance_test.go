@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -313,5 +314,20 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			_, err = gardenClient.Create(garden.ContainerSpec{Handle: container.Handle()})
 			Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
 		})
+	})
+
+	It("mounts /proc read-only", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{})
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{User: "root", Path: "cat", Args: []string{"/proc/mounts"}}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		lines := strings.Split(string(buffer.Contents()), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "proc") {
+				Ω(line).Should(ContainSubstring("ro"))
+				Ω(line).ShouldNot(ContainSubstring("rw"))
+			}
+		}
 	})
 })
