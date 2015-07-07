@@ -46,48 +46,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Eventually(output).Should(gbytes.Say("1234"))
 				Ω(process.Wait()).Should(Equal(0))
 			})
-
-			Context("and a full set of executables", func() {
-				directories := []string{
-					"/usr/local/sbin/",
-					"/usr/local/bin/",
-					"/usr/sbin/",
-					"/usr/bin/",
-					"/sbin/",
-					"/bin/",
-				}
-
-				BeforeEach(func() {
-					for _, dir := range directories {
-						foo := dir + "foo"
-						process, err := container.Run(garden.ProcessSpec{User: "root", Path: "mkdir", Args: []string{"-p", dir}}, silentProcessIO)
-						Ω(err).ShouldNot(HaveOccurred(), "Error making "+dir)
-
-						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "sh", Args: []string{"-c", "echo 'readlink -f $0' > " + foo}}, silentProcessIO)
-						Ω(err).ShouldNot(HaveOccurred(), "Error running echo on "+foo)
-						Ω(process.Wait()).Should(Equal(0), "echo exited with bad error code.")
-
-						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "chmod", Args: []string{"+x", foo}}, silentProcessIO)
-						Ω(err).ShouldNot(HaveOccurred(), "Error running chmod on "+foo)
-						Ω(process.Wait()).Should(Equal(0), "chmod +x "+foo+" exited with bad error code.")
-					}
-				})
-
-				PIt("sets the path correctly", func() {
-					for _, dir := range directories {
-						foo := dir + "foo"
-						buffer := gbytes.NewBuffer()
-						process, err := container.Run(garden.ProcessSpec{User: "root", Path: "foo"}, recordedProcessIO(buffer))
-						Ω(err).ShouldNot(HaveOccurred(), "Error running "+foo)
-						Ω(process.Wait()).Should(Equal(0), foo+" exited with bad error code.")
-						Ω(string(buffer.Contents())).Should(Equal(foo + "\n"))
-
-						process, err = container.Run(garden.ProcessSpec{User: "root", Path: "rm", Args: []string{foo}}, silentProcessIO)
-						Ω(err).ShouldNot(HaveOccurred(), "Error running removing "+foo)
-						Ω(process.Wait()).Should(Equal(0), "rm "+foo+" exited with bad error code.")
-					}
-				})
-			})
 		})
 
 		Context("with initial properties", func() {
