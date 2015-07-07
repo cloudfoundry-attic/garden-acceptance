@@ -33,7 +33,7 @@ var _ = Describe("networking", func() {
 
 		_, _, err := runCommand("sudo sh -c 'echo > /var/log/syslog'")
 		Ω(err).ShouldNot(HaveOccurred())
-		stdout := runInContainerSuccessfully(container, "curl -s http://example.com -o -")
+		stdout := runInContainerSuccessfully(container, "wget -qO- http://example.com")
 		Ω(stdout).Should(ContainSubstring("Example Domain"))
 
 		stdout, _, err = runCommand("sudo cat /var/log/syslog")

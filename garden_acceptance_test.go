@@ -275,7 +275,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				"OVERWRITTEN_ENV=C",
 			},
 		}, recordedProcessIO(buffer))
-
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(process.Wait()).Should(Equal(0))

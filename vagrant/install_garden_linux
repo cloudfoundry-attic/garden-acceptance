@@ -13,6 +13,12 @@ git fetch
 git checkout $GARDEN_LINUX_REF
 
 echo ':::: Godep Restoring...'
+set +e
+$GOPATH/bin/godep restore
+set -e
+pushd $GOPATH/src/github.com/docker/docker
+  source ./hack/make/.go-autogen
+popd
 $GOPATH/bin/godep restore
 
 echo ':::: Running make...'
