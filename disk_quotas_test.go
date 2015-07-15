@@ -8,7 +8,7 @@ import (
 )
 
 var _ = Describe("disk quotas", func() {
-	const aliceBytesAlreadyUsed = uint64(9273344) // This may break if the image changes. Would use metrics to get this value, but it's not immediate
+	const aliceBytesAlreadyUsed = uint64(12610728) // This may break if the image changes. Would use metrics to get this value, but it's not immediate
 
 	verifyQuotasAcrossUsers := func(rootfs string) {
 		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})

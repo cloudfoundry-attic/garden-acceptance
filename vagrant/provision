@@ -109,6 +109,11 @@ git clone https://github.com/cloudfoundry-incubator/garden-linux \
 echo ":::: Installing ginkgo..."
 go install github.com/onsi/ginkgo/ginkgo
 
+echo ":::: Installing capcheck into alice rootfs..."
+cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capcheck
+CGO_ENABLED=0 go build -a -installsuffix static -o $H/garden/rootfs/alice/bin/capcheck
+chmod u+s $H/garden/rootfs/alice/bin/capcheck
+
 echo ":::: Linking garden-acceptance-tests..."
 mkdir -p $GOPATH/src/github.com/cloudfoundry-incubator/
 ln -s /vagrant $GOPATH/src/github.com/cloudfoundry-incubator/garden-acceptance
