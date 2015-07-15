@@ -22,10 +22,13 @@ func TestGardenAcceptance(t *testing.T) {
 	RunSpecs(t, "Garden Acceptance Suite")
 }
 
+var gardenClient client.Client
+
 var _ = BeforeSuite(func() {
 	stdout, _, err := runCommand("sudo /vagrant/vagrant/ctl restart")
 	Ω(err).ShouldNot(HaveOccurred())
 	Ω(stdout).Should(ContainSubstring("Starting server"))
+	gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
 })
 
 var _ = AfterSuite(func() {
@@ -34,10 +37,7 @@ var _ = AfterSuite(func() {
 	Ω(stdout).Should(ContainSubstring("Stopping server"))
 })
 
-var gardenClient client.Client
-
 var _ = BeforeEach(func() {
-	gardenClient = client.New(connection.New("tcp", "127.0.0.1:7777"))
 	destroyAllContainers(gardenClient)
 })
 
