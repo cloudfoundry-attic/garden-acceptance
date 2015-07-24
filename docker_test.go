@@ -11,7 +11,7 @@ import (
 var _ = Describe("docker docker docker", func() {
 	It("returns a helpful error message when image not found from default registry (#89007566)", func() {
 		_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
-		Ω(err.Error()).Should(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry https://index.docker.io/v1/: HTTP code: 404"))
+		Ω(err.Error()).Should(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry index.docker.io: HTTP code: 404"))
 	})
 
 	It("returns a helpful error message when image not found from custom registry (#89007566)", func() {
