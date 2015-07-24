@@ -44,7 +44,7 @@ var _ = Describe("info and metrics", func() {
 			preRequestMetrics, err := container.Metrics()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			process, err := container.Run(garden.ProcessSpec{User: "alice", Path: "wget", Args: []string{"http://cloudfoundry.org"}}, silentProcessIO)
+			process, err := container.Run(garden.ProcessSpec{User: "alice", Path: "wget", Args: []string{"http://example.com"}}, silentProcessIO)
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(process.Wait()).Should(Equal(0))
 
