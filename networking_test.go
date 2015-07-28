@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("networking", func() {
+var _ = PDescribe("networking", func() {
 	It("gives a better error message when NetOut is given port and no protocol (#87201436)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
 		err := container.NetOut(garden.NetOutRule{

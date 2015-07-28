@@ -45,8 +45,9 @@ var _ = Describe("user mapping", func() {
 		Ω(buffer).Should(gbytes.Say("touch: /i_am_not_root: Permission denied"))
 	}
 
-	It("maintains permissions from a garden directory rootfs (#92808274)", func() {
-		validatePermissions("/home/vagrant/garden/rootfs/alice")
+	// Needs permissions to be preserved in rootfs
+	PIt("maintains permissions from a garden directory rootfs (#92808274)", func() {
+		validatePermissions("/var/vcap/packages/rootfs/alice")
 	})
 
 	It("maintains permissions from docker images (#91955652)", func() {

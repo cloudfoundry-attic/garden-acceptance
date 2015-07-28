@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("When the server is restarted", func() {
+var _ = PDescribe("When the server is restarted", func() {
 	restartGarden := func() {
 		stdout, _, err := runCommand("sudo /vagrant/vagrant/ctl restart")
 		Ω(err).ShouldNot(HaveOccurred())

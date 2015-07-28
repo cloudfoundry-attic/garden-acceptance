@@ -20,12 +20,31 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		var container garden.Container
 
 		It("can be run with an (essentially) empty rootfs (#91423716)", func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/vagrant/rootfs/empty"})
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/empty"})
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/hello"}, recordedProcessIO(buffer))
+			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/sleepforten"}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
-			Ω(process.Wait()).Should(Equal(0))
-			Ω(buffer).Should(gbytes.Say("hello"))
+
+			c := make(chan struct{})
+			go func() {
+				process.Wait()
+				close(c)
+			}()
+
+			go func() {
+				defer GinkgoRecover()
+				time.Sleep(time.Second)
+				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
+			}()
+
+			var channelClosed bool
+			select {
+			case <-c:
+				channelClosed = true
+			case <-time.After(5 * time.Second):
+				channelClosed = false
+			}
+			Ω(channelClosed).Should(BeTrue(), "Process wasn't terminated")
 		})
 
 		Context("that's privileged", func() {
@@ -97,7 +116,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				container = createContainer(gardenClient, garden.ContainerSpec{Privileged: false})
 			})
 
-			It("allows containers to be destroyed when wshd isn't running", func() {
+			PIt("allows containers to be destroyed when wshd isn't running", func() {
 				info, _ := container.Info()
 				pidFile, err := os.Open(filepath.Join(info.ContainerPath, "run", "wshd.pid"))
 				Ω(err).ShouldNot(HaveOccurred())
@@ -113,7 +132,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			It("can send TERM and KILL signals to processes (#83231270)", func() {
+			XIt("can send TERM and KILL signals to processes (#83231270)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
@@ -125,9 +144,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				}, recordedProcessIO(buffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Eventually(func() error {
-					return process.Signal(garden.SignalTerminate)
-				}).Should(Succeed())
+				time.Sleep(time.Second)
+
+				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
 				Eventually(buffer, "2s").Should(gbytes.Say("TERM received"), "Process did not receive TERM")
 
 				Eventually(buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
@@ -135,7 +154,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(process.Wait()).Should(Equal(255))
 			})
 
-			It("avoids a TERM race condition (#89972162)", func() {
+			PIt("avoids a TERM race condition (#89972162)", func() {
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "root",
@@ -236,7 +255,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "asdf"}))
 		})
 
-		It("does not leak network namespaces (Bug #91423716)", func() {
+		PIt("does not leak network namespaces (Bug #91423716)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{})
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())

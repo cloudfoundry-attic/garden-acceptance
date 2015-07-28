@@ -10,7 +10,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = Describe("nested containers", func() {
+var _ = PDescribe("nested containers", func() {
 	var outerContainer garden.Container
 
 	BeforeEach(func() {

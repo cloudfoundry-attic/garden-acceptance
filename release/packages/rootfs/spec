@@ -1,0 +1,7 @@
+---
+name: rootfs
+
+dependencies: []
+
+files:
+  - rootfs/*.tgz

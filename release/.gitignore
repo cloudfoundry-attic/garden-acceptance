@@ -1,0 +1,12 @@
+/tmp/
+/.blobs/
+/blobs/
+/.dev_builds/
+/dev_releases/
+/config/dev.yml
+/config/private.yml
+/src_alt/
+
+/.final_builds/jobs/**/*.tgz
+/.final_builds/packages/**/*.tgz
+/releases/*.tgz

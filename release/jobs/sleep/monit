@@ -1,0 +1,5 @@
+check process sleep
+  with pidfile /var/vcap/sys/run/sleep/sleep.pid
+  start program "/var/vcap/jobs/sleep/bin/sleep_ctl start"
+  stop program "/var/vcap/jobs/sleep/bin/sleep_ctl stop"
+  group vcap

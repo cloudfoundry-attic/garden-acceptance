@@ -1,0 +1,10 @@
+set -e
+
+NAMES=("alice cflinuxfs2 empty fusefs nestable")
+
+for NAME in $NAMES
+do
+  TARGET_DIR=${BOSH_INSTALL_TARGET}/${NAME}
+  mkdir $TARGET_DIR
+  tar -C $TARGET_DIR -xzf rootfs/${NAME}.tgz
+done
