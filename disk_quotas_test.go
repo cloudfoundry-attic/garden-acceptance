@@ -136,7 +136,7 @@ var _ = Describe("disk quotas", func() {
 	Context("when the container is created from a docker image (#92647640)", func() {
 		rootfs := "docker:///cloudfoundry/garden-pm#alice"
 
-		FIt("sets a single quota for the whole container", func() {
+		It("sets a single quota for the whole container", func() {
 			verifyQuotasAcrossUsers(rootfs)
 		})
 
