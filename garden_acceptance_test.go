@@ -32,7 +32,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 			go func() {
 				defer GinkgoRecover()
-				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
+				Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 			}()
 
 			var channelClosed bool
@@ -158,25 +158,26 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			XIt("can send TERM and KILL signals to processes (#83231270)", func() {
+			It("can send TERM and KILL signals to processes (#83231270)", func() {
 				buffer := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
 					Path: "sh",
 					Args: []string{"-c", `
 						trap 'echo "TERM received"' TERM
+						echo trapping
 						while true; do echo waiting; sleep 1; done
 					`},
 				}, recordedProcessIO(buffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				time.Sleep(time.Second)
+				Eventually(buffer, "3s").Should(gbytes.Say("trapping"), "Process didn't report trapping")
 
 				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
-				Eventually(buffer, "2s").Should(gbytes.Say("TERM received"), "Process did not receive TERM")
+				Eventually(buffer, "3s").Should(gbytes.Say("TERM received"), "Process did not receive TERM")
 
-				Eventually(buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
-				Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
+				Eventually(buffer, "3s").Should(gbytes.Say("waiting"), "Process isn't still running")
+				Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 				Ω(process.Wait()).Should(Equal(255))
 			})
 

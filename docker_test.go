@@ -1,6 +1,8 @@
 package garden_acceptance_test
 
 import (
+	"fmt"
+
 	"github.com/cloudfoundry-incubator/garden"
 
 	. "github.com/onsi/ginkgo"
@@ -9,6 +11,21 @@ import (
 )
 
 var _ = Describe("docker docker docker", func() {
+
+	FIt("doesn't run /etc/seed", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/alice"})
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			User: "alice",
+			Path: "ls",
+			Args: []string{"/"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		fmt.Println(string(buffer.Contents()))
+		Ω(buffer).ShouldNot(gbytes.Say("seeded"))
+	})
+
 	It("returns a helpful error message when image not found from default registry (#89007566)", func() {
 		_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
 		Ω(err.Error()).Should(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry index.docker.io: HTTP code: 404"))

@@ -1,4 +1,4 @@
-FROM busybox
+FROM debian:wheezy
 
-RUN adduser -D alice
-RUN adduser -D bob
+RUN useradd -m alice
+RUN useradd -m bob

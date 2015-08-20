@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("info and metrics", func() {
+var _ = PDescribe("info and metrics", func() {
 	Describe("Container.Info()", func() {
 		It("returns a container IP", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{Network: "10.1.1.1/16"})

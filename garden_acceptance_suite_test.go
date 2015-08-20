@@ -28,13 +28,13 @@ var _ = BeforeSuite(func() {
 	gardenClient = client.New(connection.New("tcp", "10.244.16.6:7777"))
 })
 
-var _ = BeforeEach(func() {
-	destroyAllContainers(gardenClient)
-})
+// var _ = BeforeEach(func() {
+// 	destroyAllContainers(gardenClient)
+// })
 
-var _ = AfterEach(func() {
-	destroyAllContainers(gardenClient)
-})
+// var _ = AfterEach(func() {
+// 	destroyAllContainers(gardenClient)
+// })
 
 var lsProcessSpec = garden.ProcessSpec{User: "root", Path: "ls", Args: []string{"-l", "/"}}
 var silentProcessIO = garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter}
