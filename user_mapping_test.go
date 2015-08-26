@@ -14,7 +14,7 @@ var _ = Describe("user mapping", func() {
 
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(
-			garden.ProcessSpec{User: "vcap", Path: "touch", Args: []string{"/home/alice/not_me"}},
+			garden.ProcessSpec{User: "bob", Path: "touch", Args: []string{"/home/alice/not_me"}},
 			recordedProcessIO(buffer),
 		)
 		Ω(err).ShouldNot(HaveOccurred())
@@ -45,8 +45,7 @@ var _ = Describe("user mapping", func() {
 		Ω(buffer).Should(gbytes.Say("touch: /i_am_not_root: Permission denied"))
 	}
 
-	// Needs permissions to be preserved in rootfs
-	PIt("maintains permissions from a garden directory rootfs (#92808274)", func() {
+	It("maintains permissions from a garden directory rootfs (#92808274)", func() {
 		validatePermissions("/var/vcap/packages/rootfs/alice")
 	})
 

@@ -1,8 +1,0 @@
----
-name: tests
-
-dependencies:
-  - golang_1.4
-
-files:
-  - tests/*.go

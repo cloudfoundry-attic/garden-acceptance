@@ -7,9 +7,10 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = PDescribe("networking", func() {
+var _ = Describe("networking", func() {
 	It("gives a better error message when NetOut is given port and no protocol (#87201436)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
 		err := container.NetOut(garden.NetOutRule{
@@ -19,15 +20,22 @@ var _ = PDescribe("networking", func() {
 	})
 
 	It("can open outbound ICMP connections (#85601268)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
+		container := createContainer(gardenClient, garden.ContainerSpec{})
 		Ω(container.NetOut(pingRule("8.8.8.8"))).Should(Succeed())
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ping",
+			Args: []string{"-c", "1", "-w", "3", "8.8.8.8"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
 
-		stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 8.8.8.8")
-		Ω(stdout).Should(ContainSubstring("64 bytes from"))
-		Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		Ω(buffer).Should(gbytes.Say("64 bytes from"))
+		Ω(buffer).ShouldNot(gbytes.Say("100% packet loss"))
 	})
 
-	It("logs outbound TCP connections (#90216342, #82554270)", func() {
+	PIt("logs outbound TCP connections (#90216342, #82554270)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{Handle: "Unique"})
 		Ω(container.NetOut(tcpRule("93.184.216.34", 80))).Should(Succeed())
 
@@ -44,22 +52,40 @@ var _ = PDescribe("networking", func() {
 
 	It("respects network option to set default ip for a container (#75464982)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.0/30"})
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ifconfig",
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
 
-		stdout := runInContainerSuccessfully(container, "-user root ifconfig")
-		Ω(stdout).Should(ContainSubstring("inet addr:10.2.0.1"))
-		Ω(stdout).Should(ContainSubstring("Bcast:0.0.0.0  Mask:255.255.255.252"))
+		Ω(buffer).Should(gbytes.Say("inet addr:10.2.0.1"))
+		Ω(buffer).Should(gbytes.Say("Bcast:0.0.0.0  Mask:255.255.255.252"))
 
-		stdout = runInContainerSuccessfully(container, "-user root route | grep default")
-		Ω(stdout).Should(ContainSubstring("10.2.0.2"))
+		buffer = gbytes.NewBuffer()
+		process, err = container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "route",
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).Should(gbytes.Say("default\\s+10.2.0.2"))
 	})
 
 	It("allows containers to talk to each other (#75464982)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.1/24"})
 		_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
-
-		stdout := runInContainerSuccessfully(container, "ping -c 1 -w 3 10.2.0.2")
-		Ω(stdout).Should(ContainSubstring("64 bytes from"))
-		Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ping",
+			Args: []string{"-c", "1", "-w", "3", "10.2.0.2"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).Should(gbytes.Say("64 bytes from"))
+		Ω(buffer).ShouldNot(gbytes.Say("100% packet loss"))
 	})
 
 	It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
@@ -69,9 +95,17 @@ var _ = PDescribe("networking", func() {
 
 		gardenClient.Destroy(container1.Handle())
 
-		stdout := runInContainerSuccessfully(container2, "ping -c 1 -w 3 8.8.8.8")
-		Ω(stdout).Should(ContainSubstring("64 bytes from"))
-		Ω(stdout).ShouldNot(ContainSubstring("100% packet loss"))
+		buffer := gbytes.NewBuffer()
+		process, err := container2.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ping",
+			Args: []string{"-c", "1", "-w", "3", "8.8.8.8"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+
+		Ω(buffer).Should(gbytes.Say("64 bytes from"))
+		Ω(buffer).ShouldNot(gbytes.Say("100% packet loss"))
 	})
 
 	It("errors gracefully when provisioning overlapping networks (#79933424)", func() {
@@ -81,7 +115,7 @@ var _ = PDescribe("networking", func() {
 		Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.0.0/24)"))
 	})
 
-	It("should allow configuration of MTU (#80221576)", func() {
+	PIt("should allow configuration of MTU (#80221576)", func() {
 		container, err := gardenClient.Create(garden.ContainerSpec{
 			RootFSPath: "docker:///onsi/grace-busybox",
 		})

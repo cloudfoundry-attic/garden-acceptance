@@ -5,7 +5,6 @@ templates:
   sleep_ctl.erb: bin/sleep_ctl
 
 packages:
-  - tests
   - rootfs
   - golang_1.4
 

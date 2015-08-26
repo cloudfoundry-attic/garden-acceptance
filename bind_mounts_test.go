@@ -14,7 +14,7 @@ var _ = Describe("bind_mounts", func() {
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
 					SrcPath: "/var/vcap/packages",
-					DstPath: "/home/vcap/readonly",
+					DstPath: "/home/alice/readonly",
 					Mode:    garden.BindMountModeRO,
 				},
 			},
@@ -24,7 +24,7 @@ var _ = Describe("bind_mounts", func() {
 		process, err := container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "ls",
-			Args: []string{"/home/vcap/readonly"},
+			Args: []string{"/home/alice/readonly"},
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
@@ -33,7 +33,7 @@ var _ = Describe("bind_mounts", func() {
 		process, err = container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "touch",
-			Args: []string{"/home/vcap/readonly/new_file"},
+			Args: []string{"/home/alice/readonly/new_file"},
 		}, silentProcessIO)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).ShouldNot(Equal(0))
@@ -41,7 +41,7 @@ var _ = Describe("bind_mounts", func() {
 		process, err = container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "ls",
-			Args: []string{"/home/vcap/readonly"},
+			Args: []string{"/home/alice/readonly"},
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
@@ -52,8 +52,8 @@ var _ = Describe("bind_mounts", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
-					SrcPath: "/home/vcap",
-					DstPath: "/home/vcap/readwrite",
+					SrcPath: "/tmp",
+					DstPath: "/home/alice/readwrite",
 					Mode:    garden.BindMountModeRW,
 					Origin:  garden.BindMountOriginContainer,
 				},
@@ -64,24 +64,26 @@ var _ = Describe("bind_mounts", func() {
 		process, err := container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "ls",
-			Args: []string{"/home/vcap/readwrite"},
+			Args: []string{"/home/alice/readwrite"},
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
 		Ω(buffer).ShouldNot(gbytes.Say("new_file"))
 
+		buffer = gbytes.NewBuffer()
 		process, err = container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "touch",
-			Args: []string{"/home/vcap/readwrite/new_file"},
-		}, silentProcessIO)
+			Args: []string{"/home/alice/readwrite/new_file"},
+		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
 
+		buffer = gbytes.NewBuffer()
 		process, err = container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "ls",
-			Args: []string{"/home/vcap/readwrite"},
+			Args: []string{"/home/alice/readwrite"},
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))

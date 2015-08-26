@@ -26,6 +26,15 @@ case $1 in
     mkdir -p $RUN_DIR
     mkdir -p $LOG_DIR
 
+    ROOTFS_NAMES=("alice cflinuxfs2 empty fusefs nestable")
+    for NAME in $ROOTFS_NAMES
+    do
+      TARGET_DIR=/var/vcap/packages/rootfs/${NAME}
+      rm -rf $TARGET_DIR
+      mkdir $TARGET_DIR
+      tar -C $TARGET_DIR -pxzf /var/vcap/packages/rootfs/${NAME}.tgz
+    done
+
     echo $$ > $PIDFILE
 
     while true; do

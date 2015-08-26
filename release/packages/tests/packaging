@@ -1,3 +1,0 @@
-set -e
-
-cp tests/*.go $BOSH_INSTALL_TARGET

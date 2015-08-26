@@ -181,7 +181,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(process.Wait()).Should(Equal(255))
 			})
 
-			PIt("avoids a TERM race condition (#89972162)", func() {
+			It("avoids a TERM race condition (#89972162)", func() {
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "root",
@@ -193,7 +193,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 					Ω(process.Wait()).Should(Equal(255))
 				}
-			}, 60.0) // TODO: Decrease this once signaling has been improved?
+			})
 
 			It("allows the process to catch SIGCHLD (#85801952)", func() {
 				buffer := gbytes.NewBuffer()
@@ -315,7 +315,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{
-			User: "vcap",
+			User: "root",
 			Path: "sh",
 			Args: []string{"-c", "printenv"},
 			Env: []string{
@@ -329,7 +329,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
 		Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
 		Ω(buffer.Contents()).Should(ContainSubstring("HOME=/nowhere"))
-		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/home/vcap"))
+		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/home/root"))
 		Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
 		Ω(buffer.Contents()).Should(ContainSubstring("PASSWORD=;$*@='\"$(pwd)!!"))
 	})
