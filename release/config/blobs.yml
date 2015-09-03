@@ -1,1 +1,17 @@
---- {}
+---
+rootfs/alice.tgz:
+  object_id: 16dc196d-0be4-41fc-bd1a-67c46bf47f53
+  sha: 15f463076379f817e75391ac882162a84396c762
+  size: 1146027
+rootfs/cflinuxfs2.tgz:
+  object_id: c3a32400-afa1-490b-a2b3-4dbf2837b466
+  sha: 45914689d88484f7ad4efc6a75b9877f48837da4
+  size: 249225633
+rootfs/empty.tgz:
+  object_id: 17ea21c3-33b8-4663-a71a-b18574fcd65d
+  sha: 427c701b2819a66a5d441bd783ad59f3e8405169
+  size: 813301
+rootfs/fusefs.tgz:
+  object_id: d5d13f5a-3abf-4040-9bb3-3cc74567fdc0
+  sha: 275f767e463a556d0c54531e24e19aa4c6cda9ba
+  size: 111676451

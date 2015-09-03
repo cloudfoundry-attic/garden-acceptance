@@ -1,6 +1,6 @@
 set -e
 
-ROOTFS_NAMES=("alice cflinuxfs2 empty fusefs nestable")
+ROOTFS_NAMES=("alice cflinuxfs2 empty fusefs")
 
 for NAME in $ROOTFS_NAMES
 do

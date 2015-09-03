@@ -26,7 +26,7 @@ case $1 in
     mkdir -p $RUN_DIR
     mkdir -p $LOG_DIR
 
-    ROOTFS_NAMES=("alice cflinuxfs2 empty fusefs nestable")
+    ROOTFS_NAMES=("alice cflinuxfs2 empty fusefs")
     for NAME in $ROOTFS_NAMES
     do
       TARGET_DIR=/var/vcap/packages/rootfs/${NAME}

@@ -6,6 +6,5 @@ templates:
 
 packages:
   - rootfs
-  - golang_1.4
 
 properties: {}
