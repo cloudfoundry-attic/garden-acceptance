@@ -35,21 +35,6 @@ var _ = Describe("networking", func() {
 		Ω(buffer).ShouldNot(gbytes.Say("100% packet loss"))
 	})
 
-	PIt("logs outbound TCP connections (#90216342, #82554270)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{Handle: "Unique"})
-		Ω(container.NetOut(tcpRule("93.184.216.34", 80))).Should(Succeed())
-
-		_, _, err := runCommand("sudo sh -c 'echo > /var/log/syslog'")
-		Ω(err).ShouldNot(HaveOccurred())
-		stdout := runInContainerSuccessfully(container, "wget -qO- http://example.com")
-		Ω(stdout).Should(ContainSubstring("Example Domain"))
-
-		stdout, _, err = runCommand("sudo cat /var/log/syslog")
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(stdout).Should(ContainSubstring("Unique"))
-		Ω(stdout).Should(ContainSubstring("DST=93.184.216.34"))
-	})
-
 	It("respects network option to set default ip for a container (#75464982)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.0/30"})
 		buffer := gbytes.NewBuffer()
