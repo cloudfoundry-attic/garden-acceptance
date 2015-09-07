@@ -35,8 +35,8 @@ var _ = Describe("networking", func() {
 		Ω(buffer).ShouldNot(gbytes.Say("100% packet loss"))
 	})
 
-	It("respects network option to set default ip for a container (#75464982)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.0/30"})
+	It("respects network option to set subnet for a container (#75464982)", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.3/24"})
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{
 			User: "root",
@@ -45,8 +45,8 @@ var _ = Describe("networking", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
 
-		Ω(buffer).Should(gbytes.Say("inet addr:10.2.0.1"))
-		Ω(buffer).Should(gbytes.Say("Bcast:0.0.0.0  Mask:255.255.255.252"))
+		Ω(buffer).Should(gbytes.Say("inet addr:10.2.0.3"))
+		Ω(buffer).Should(gbytes.Say("Bcast:0.0.0.0  Mask:255.255.255.0"))
 
 		buffer = gbytes.NewBuffer()
 		process, err = container.Run(garden.ProcessSpec{
@@ -55,17 +55,19 @@ var _ = Describe("networking", func() {
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
-		Ω(buffer).Should(gbytes.Say("default\\s+10.2.0.2"))
+		Ω(buffer).Should(gbytes.Say("default\\s+10.2.0.1"))
 	})
 
 	It("allows containers to talk to each other (#75464982)", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.1/24"})
-		_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.2/24"})
+		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.0/30"})
+		container2 := createContainer(gardenClient, garden.ContainerSpec{Network: "10.3.0.0/30"})
+		info, err := container2.Info()
+		Ω(err).ShouldNot(HaveOccurred())
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "ping",
-			Args: []string{"-c", "1", "-w", "3", "10.2.0.2"},
+			Args: []string{"-c", "1", "-w", "3", info.ContainerIP},
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
@@ -74,8 +76,8 @@ var _ = Describe("networking", func() {
 	})
 
 	It("doesn't destroy routes when destroying container (Bug #83656106)", func() {
-		container1 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.1/24"})
-		container2 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.2/24"})
+		container1 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.2.0.0/24"})
+		container2 := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, Network: "10.3.0.0/24"})
 		Ω(container2.NetOut(pingRule("8.8.8.8"))).Should(Succeed())
 
 		gardenClient.Destroy(container1.Handle())
@@ -94,8 +96,8 @@ var _ = Describe("networking", func() {
 	})
 
 	It("errors gracefully when provisioning overlapping networks (#79933424)", func() {
-		_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.1/24"})
-		_, err := gardenClient.Create(garden.ContainerSpec{Network: "10.2.0.2/16"})
+		_ = createContainer(gardenClient, garden.ContainerSpec{Network: "10.2.0.0/24"})
+		_, err := gardenClient.Create(garden.ContainerSpec{Network: "10.2.0.3/16"})
 		Ω(err).Should(HaveOccurred())
 		Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.0.0/24)"))
 	})
