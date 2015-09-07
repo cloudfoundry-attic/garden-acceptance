@@ -14,7 +14,6 @@ var _ = Describe("disk quotas", func() {
 	PIt("something to do with disk usage reporting", func() {
 		rootfs := "docker:///cloudfoundry/garden-pm#alice"
 		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})
-		time.Sleep(time.Second * 60)
 		metricsBeforeWritingData, err := container.Metrics()
 		Ω(err).ShouldNot(HaveOccurred())
 		fmt.Println("")
@@ -28,7 +27,6 @@ var _ = Describe("disk quotas", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
 
-		time.Sleep(time.Second * 60)
 		metricsAfterWritingData, err := container.Metrics()
 		Ω(err).ShouldNot(HaveOccurred())
 		fmt.Println("")
