@@ -1,7 +1,7 @@
 ---
 name: garden-acceptance
 
-director_uuid: <%= `bundle exec bosh status --uuid` %>
+director_uuid: <%= `bosh status --uuid` %>
 
 releases:
   - name: garden-linux
