@@ -19,6 +19,16 @@ var _ = Describe("docker docker docker", func() {
 		Ω(err.Error()).Should(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry quay.io"))
 	})
 
+	XIt("garbage collection", func() {
+		redis := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///registry"})
+		Ω(gardenClient.Destroy(redis.Handle())).To(Succeed())
+	})
+
+	XIt("garbage collection", func() {
+		busybox := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "docker:///busybox"})
+		Ω(gardenClient.Destroy(busybox.Handle())).To(Succeed())
+	})
+
 	It("can create a container without /bin/sh (#90521974)", func() {
 		_, err := gardenClient.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/no-sh"})
 		Ω(err).ShouldNot(HaveOccurred())

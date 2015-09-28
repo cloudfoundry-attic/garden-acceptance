@@ -74,7 +74,9 @@ update:
 
 properties:
   garden:
-    disk_quota_enabled: true
     listen_network: tcp
     listen_address: 0.0.0.0:7777
     mount_btrfs_loopback: true
+    disk_quota_enabled: true
+    enable_graph_cleanup: false
+    persistent_image_list: [ "docker:///busybox" ]

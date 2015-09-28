@@ -8,6 +8,7 @@ import (
 )
 
 var _ = PDescribe("dropping capabilities", func() {
+	// TOD: Can bind mount capcheck int
 	var container garden.Container
 
 	// capabilitiesMask := func(container garden.Container, user string) string {
