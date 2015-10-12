@@ -8,26 +8,7 @@ import (
 )
 
 var _ = PDescribe("dropping capabilities", func() {
-	// TOD: Can bind mount capcheck int
 	var container garden.Container
-
-	// capabilitiesMask := func(container garden.Container, user string) string {
-	// 	buffer := gbytes.NewBuffer()
-	// 	process, err := container.Run(
-	// 		garden.ProcessSpec{
-	// 			User: user,
-	// 			Path: "sh",
-	// 			Args: []string{
-	// 				"-c",
-	// 				"cat /proc/$$/status | grep Cap", // Bnd" | cut -f 2 | tr -d '\n'",
-	// 			},
-	// 		},
-	// 		recordedProcessIO(buffer),
-	// 	)
-	// 	Ω(err).ShouldNot(HaveOccurred())
-	// 	Ω(process.Wait()).Should(Equal(0))
-	// 	return string(buffer.Contents())
-	// }
 
 	Context("for privileged containers", func() {
 		BeforeEach(func() {

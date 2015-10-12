@@ -1,9 +1,6 @@
 package garden_acceptance_test
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -11,29 +8,6 @@ import (
 )
 
 var _ = Describe("disk quotas", func() {
-	PIt("something to do with disk usage reporting", func() {
-		rootfs := "docker:///cloudfoundry/garden-pm#alice"
-		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})
-		metricsBeforeWritingData, err := container.Metrics()
-		Ω(err).ShouldNot(HaveOccurred())
-		fmt.Println("")
-		fmt.Println(metricsBeforeWritingData.DiskStat.TotalBytesUsed)
-		fmt.Println(metricsBeforeWritingData.DiskStat.ExclusiveBytesUsed)
-
-		process, err := container.Run(
-			garden.ProcessSpec{User: "root", Path: "dd", Args: []string{"if=/dev/random", "of=/home/alice/junk", "bs=1024M", "count=1"}},
-			silentProcessIO,
-		)
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(process.Wait()).Should(Equal(0))
-
-		metricsAfterWritingData, err := container.Metrics()
-		Ω(err).ShouldNot(HaveOccurred())
-		fmt.Println("")
-		fmt.Println(metricsAfterWritingData.DiskStat.TotalBytesUsed)
-		fmt.Println(metricsAfterWritingData.DiskStat.ExclusiveBytesUsed)
-	})
-
 	verifyQuotasAcrossUsers := func(rootfs string) {
 		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})
 		metrics, err := container.Metrics()
@@ -76,25 +50,25 @@ var _ = Describe("disk quotas", func() {
 		Ω(process.Wait()).Should(Equal(0))
 	}
 
-	XIt("limits...", func() {
+	It("limits...", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			Limits: garden.Limits{
-				// Bandwidth: garden.BandwidthLimits{RateInBytesPerSecond: 420, BurstRateInBytesPerSecond: 421},
-				// CPU:       garden.CPULimits{LimitInShares: 42},
-				Memory: garden.MemoryLimits{LimitInBytes: 45056},
+				Bandwidth: garden.BandwidthLimits{RateInBytesPerSecond: 420, BurstRateInBytesPerSecond: 421},
+				CPU:       garden.CPULimits{LimitInShares: 42},
+				Memory:    garden.MemoryLimits{LimitInBytes: 45056},
 			},
 		})
 
-		// bandwidthLimits, err := container.CurrentBandwidthLimits()
-		// Ω(err).ShouldNot(HaveOccurred())
-		// CPULimits, err := container.CurrentCPULimits()
-		// Ω(err).ShouldNot(HaveOccurred())
+		bandwidthLimits, err := container.CurrentBandwidthLimits()
+		Ω(err).ShouldNot(HaveOccurred())
+		CPULimits, err := container.CurrentCPULimits()
+		Ω(err).ShouldNot(HaveOccurred())
 		memoryLimits, err := container.CurrentMemoryLimits()
 		Ω(err).ShouldNot(HaveOccurred())
 
-		// Ω(bandwidthLimits.RateInBytesPerSecond).Should(BeNumerically("==", 420))
-		// Ω(bandwidthLimits.BurstRateInBytesPerSecond).Should(BeNumerically("==", 421))
-		// Ω(CPULimits.LimitInShares).Should(BeNumerically("==", 42))
+		Ω(bandwidthLimits.RateInBytesPerSecond).Should(BeNumerically("==", 420))
+		Ω(bandwidthLimits.BurstRateInBytesPerSecond).Should(BeNumerically("==", 421))
+		Ω(CPULimits.LimitInShares).Should(BeNumerically("==", 42))
 		Ω(memoryLimits.LimitInBytes).Should(BeNumerically("==", 45056))
 	})
 
@@ -109,17 +83,14 @@ var _ = Describe("disk quotas", func() {
 			verifyQuotasOnlyAffectASingleContainer(rootfs)
 		})
 
-		XIt("does not create the container if it will immediately exceed its disk quota", func() {
+		It("does not create the container if it will immediately exceed its disk quota", func() {
 			_, err := gardenClient.Create(garden.ContainerSpec{
 				RootFSPath: "docker:///cloudfoundry/garden-pm#alice",
-				// Limits: garden.Limits{
-				// 	Disk: garden.DiskLimits{ByteHard: 512, Scope: garden.DiskLimitScopeTotal},
-				// },
+				Limits: garden.Limits{
+					Disk: garden.DiskLimits{ByteHard: 512, Scope: garden.DiskLimitScopeTotal},
+				},
 			})
-			// Ω(err).Should(MatchError(ContainSubstring("quota exceeded")))
-			Ω(err).ShouldNot(HaveOccurred())
-
-			time.Sleep(time.Second)
+			Ω(err).Should(MatchError(ContainSubstring("quota exceeded")))
 
 			Ω(gardenClient.Containers(garden.Properties{})).Should(HaveLen(0))
 		})
