@@ -21,11 +21,59 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		It("can be run with an (essentially) empty rootfs (#91423716)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/empty"})
+<<<<<<< Updated upstream
+=======
+			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/sleepforten"}, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			c := make(chan struct{})
+			go func() {
+				process.Wait()
+				close(c)
+			}()
+
+			go func() {
+				defer GinkgoRecover()
+				Ω(process.Signal(garden.SignalKill)).Should(Succeed())
+			}()
+
+			var channelClosed bool
+			select {
+			case <-c:
+				channelClosed = true
+			case <-time.After(5 * time.Second):
+				channelClosed = false
+			}
+			Ω(channelClosed).Should(BeTrue(), "Process wasn't terminated")
+		})
+
+		It("creates the working directory if it doesn't already exist", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/alice"})
+>>>>>>> Stashed changes
 			buffer := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/hello"}, recordedProcessIO(buffer))
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "echo",
+				Args: []string{"foobar"},
+				Dir:  "/foo/bar",
+			}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(process.Wait()).Should(Equal(0))
-			Ω(buffer).Should(gbytes.Say("hello"))
+			Ω(buffer).Should(gbytes.Say("foobar"))
+		})
+
+		It("does not create the working directory if the user doesn't have permission to do so", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/alice"})
+			buffer := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{
+				User: "alice",
+				Path: "echo",
+				Args: []string{"foobar"},
+				Dir:  "/foo/bar",
+			}, recordedProcessIO(buffer))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).ShouldNot(Equal(0))
+			Ω(buffer).Should(gbytes.Say("permission denied"))
 		})
 
 		Context("that's privileged", func() {

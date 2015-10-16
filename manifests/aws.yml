@@ -1,0 +1,65 @@
+---
+name: garden-acceptance
+
+director_uuid: 3d652df2-09c1-4a0d-9316-b693a8c29761
+
+releases:
+  - name: garden-linux
+    version: latest
+  - name: garden-acceptance
+    version: latest
+
+jobs:
+  - name: garden
+    instances: 1
+    templates:
+      - name: sleep
+        release: garden-acceptance
+      - name: garden
+        release: garden-linux
+    resource_pool: garden
+    networks:
+      - name: garden
+        static_ips:
+          - 10.0.0.11
+
+networks:
+  - name: garden
+    type: manual
+    subnets:
+      - range: 10.0.0.0/24
+        gateway: 10.0.0.1
+        reserved: [10.0.0.2-10.0.0.10]
+        static: [10.0.0.11]
+        dns: [10.0.0.2]
+        cloud_properties:
+          subnet: subnet-c130b798
+
+resource_pools:
+  - name: garden
+    network: garden
+    stemcell:
+      name: bosh-aws-xen-ubuntu-trusty-go_agent
+      version: latest
+    cloud_properties:
+      instance_type: t2.small
+
+compilation:
+  workers: 3
+  network: garden
+  cloud_properties:
+    instance_type: c3.xlarge
+
+update:
+  canaries: 1
+  max_in_flight: 3
+  serial: false
+  canary_watch_time: 1000-240000
+  update_watch_time: 1000-240000
+
+properties:
+  garden:
+    disk_quota_enabled: true
+    listen_network: tcp
+    listen_address: 0.0.0.0:7777
+    mount_btrfs_loopback: true
