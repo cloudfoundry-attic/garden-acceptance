@@ -8,16 +8,16 @@ import (
 )
 
 var _ = Describe("disk quotas", func() {
-	const aliceBytesAlreadyUsed = uint64(12610728) // This may break if the image changes. Would use metrics to get this value, but it's not immediate
-
 	verifyQuotasAcrossUsers := func(rootfs string) {
 		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})
-		byteLimit := aliceBytesAlreadyUsed + (1024 * 1024 * 2)
-		err := container.LimitDisk(garden.DiskLimits{ByteHard: byteLimit})
+		metrics, err := container.Metrics()
+		Ω(err).ShouldNot(HaveOccurred())
+		var byteLimit uint64 = metrics.DiskStat.TotalBytesUsed + (2 * 1024 * 1024)
+		err = container.LimitDisk(garden.DiskLimits{ByteHard: byteLimit, Scope: garden.DiskLimitScopeTotal})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		process, err := container.Run(
-			garden.ProcessSpec{User: "alice", Path: "dd", Args: []string{"if=/dev/zero", "of=/home/alice/junk", "bs=1024M", "count=1"}},
+			garden.ProcessSpec{User: "alice", Path: "dd", Args: []string{"if=/dev/urandom", "of=/home/alice/junk", "bs=1M", "count=1"}},
 			silentProcessIO,
 		)
 		Ω(err).ShouldNot(HaveOccurred())
@@ -25,23 +25,25 @@ var _ = Describe("disk quotas", func() {
 
 		buffer := gbytes.NewBuffer()
 		process, err = container.Run(
-			garden.ProcessSpec{User: "bob", Path: "dd", Args: []string{"if=/dev/zero", "of=/home/bob/junk", "bs=1024M", "count=2"}},
+			garden.ProcessSpec{User: "bob", Path: "dd", Args: []string{"if=/dev/urandom", "of=/home/bob/junk", "bs=1M", "count=2"}},
 			recordedProcessIO(buffer),
 		)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).ShouldNot(Equal(0))
-		Ω(buffer).Should(gbytes.Say("dd: can't open '/home/bob/junk': Disk quota exceeded"))
+		Ω(buffer).Should(gbytes.Say("dd: writing '/home/bob/junk': Disk quota exceeded"))
 	}
 
 	verifyQuotasOnlyAffectASingleContainer := func(rootfs string) {
-		containerWithQuota := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})
-		byteLimit := aliceBytesAlreadyUsed + (1024 * 1024)
-		err := containerWithQuota.LimitDisk(garden.DiskLimits{ByteHard: byteLimit})
+		container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})
+		metrics, err := container.Metrics()
+		Ω(err).ShouldNot(HaveOccurred())
+		var byteLimit uint64 = metrics.DiskStat.TotalBytesUsed + (1024 * 1024)
+		err = container.LimitDisk(garden.DiskLimits{ByteHard: byteLimit, Scope: garden.DiskLimitScopeTotal})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		containerWithoutQuota := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: rootfs})
 		process, err := containerWithoutQuota.Run(
-			garden.ProcessSpec{User: "alice", Path: "dd", Args: []string{"if=/dev/zero", "of=/home/alice/junk", "bs=1024M", "count=2"}},
+			garden.ProcessSpec{User: "root", Path: "dd", Args: []string{"if=/dev/zero", "of=/junk", "bs=1M", "count=2"}},
 			silentProcessIO,
 		)
 		Ω(err).ShouldNot(HaveOccurred())
@@ -61,7 +63,7 @@ var _ = Describe("disk quotas", func() {
 	})
 
 	Context("when the container is created from a directory rootfs (#95436952)", func() {
-		rootfs := "/home/vagrant/garden/rootfs/alice"
+		rootfs := "/var/vcap/packages/rootfs/alice"
 
 		It("sets a single quota for the whole container", func() {
 			verifyQuotasAcrossUsers(rootfs)

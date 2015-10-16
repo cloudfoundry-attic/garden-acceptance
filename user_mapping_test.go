@@ -14,7 +14,7 @@ var _ = Describe("user mapping", func() {
 
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(
-			garden.ProcessSpec{User: "vcap", Path: "touch", Args: []string{"/home/alice/not_me"}},
+			garden.ProcessSpec{User: "bob", Path: "touch", Args: []string{"/home/alice/not_me"}},
 			recordedProcessIO(buffer),
 		)
 		Ω(err).ShouldNot(HaveOccurred())
@@ -46,7 +46,7 @@ var _ = Describe("user mapping", func() {
 	}
 
 	It("maintains permissions from a garden directory rootfs (#92808274)", func() {
-		validatePermissions("/home/vagrant/garden/rootfs/alice")
+		validatePermissions("/var/vcap/packages/rootfs/alice")
 	})
 
 	It("maintains permissions from docker images (#91955652)", func() {

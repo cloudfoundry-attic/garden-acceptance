@@ -20,7 +20,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		var container garden.Container
 
 		It("can be run with an (essentially) empty rootfs (#91423716)", func() {
-			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/vagrant/rootfs/empty"})
+			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/empty"})
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/hello"}, recordedProcessIO(buffer))
 			Ω(err).ShouldNot(HaveOccurred())
@@ -97,7 +97,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				container = createContainer(gardenClient, garden.ContainerSpec{Privileged: false})
 			})
 
-			It("allows containers to be destroyed when wshd isn't running", func() {
+			PIt("allows containers to be destroyed when wshd isn't running", func() {
 				info, _ := container.Info()
 				pidFile, err := os.Open(filepath.Join(info.ContainerPath, "run", "wshd.pid"))
 				Ω(err).ShouldNot(HaveOccurred())
@@ -120,18 +120,19 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					Path: "sh",
 					Args: []string{"-c", `
 						trap 'echo "TERM received"' TERM
+						echo trapping
 						while true; do echo waiting; sleep 1; done
 					`},
 				}, recordedProcessIO(buffer))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Eventually(func() error {
-					return process.Signal(garden.SignalTerminate)
-				}).Should(Succeed())
-				Eventually(buffer, "2s").Should(gbytes.Say("TERM received"), "Process did not receive TERM")
+				Eventually(buffer, "3s").Should(gbytes.Say("trapping"), "Process didn't report trapping")
 
-				Eventually(buffer, "2s").Should(gbytes.Say("waiting"), "Process is still running")
-				Ω(process.Signal(garden.SignalKill)).Should(Succeed(), "Process being killed")
+				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
+				Eventually(buffer, "3s").Should(gbytes.Say("TERM received"), "Process did not receive TERM")
+
+				Eventually(buffer, "3s").Should(gbytes.Say("waiting"), "Process isn't still running")
+				Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 				Ω(process.Wait()).Should(Equal(255))
 			})
 
@@ -147,7 +148,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 					Ω(process.Wait()).Should(Equal(255))
 				}
-			}, 60.0) // TODO: Decrease this once signaling has been improved?
+			})
 
 			It("allows the process to catch SIGCHLD (#85801952)", func() {
 				buffer := gbytes.NewBuffer()
@@ -236,7 +237,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "asdf"}))
 		})
 
-		It("does not leak network namespaces (Bug #91423716)", func() {
+		PIt("does not leak network namespaces (Bug #91423716)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{})
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -269,7 +270,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{
-			User: "vcap",
+			User: "root",
 			Path: "sh",
 			Args: []string{"-c", "printenv"},
 			Env: []string{
@@ -283,7 +284,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		Ω(buffer.Contents()).Should(ContainSubstring("OVERWRITTEN_ENV=C"))
 		Ω(buffer.Contents()).ShouldNot(ContainSubstring("OVERWRITTEN_ENV=B"))
 		Ω(buffer.Contents()).Should(ContainSubstring("HOME=/nowhere"))
-		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/home/vcap"))
+		Ω(buffer.Contents()).ShouldNot(ContainSubstring("HOME=/home/root"))
 		Ω(buffer.Contents()).Should(ContainSubstring("ROOT_ENV=A"))
 		Ω(buffer.Contents()).Should(ContainSubstring("PASSWORD=;$*@='\"$(pwd)!!"))
 	})

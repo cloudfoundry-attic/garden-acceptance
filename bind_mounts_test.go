@@ -5,52 +5,88 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("bind_mounts", func() {
 	It("can mount a read-only BindMount (#75464648)", func() {
-		preExistingFile := "old"
-		runCommand("sudo touch /var/" + preExistingFile)
-		newFile := "new"
-		runCommand("sudo rm -f /var/" + newFile)
-
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
-					SrcPath: "/var",
-					DstPath: "/home/vcap/readonly",
+					SrcPath: "/var/vcap/packages",
+					DstPath: "/home/alice/readonly",
 					Mode:    garden.BindMountModeRO,
 				},
 			},
 		})
-		runCommand("sudo touch /var/" + newFile)
 
-		stdout := runInContainerSuccessfully(container, "ls /home/vcap/readonly")
-		Ω(stdout).Should(ContainSubstring(preExistingFile))
-		Ω(stdout).Should(ContainSubstring(newFile))
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ls",
+			Args: []string{"/home/alice/readonly"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).Should(gbytes.Say("rootfs"))
 
-		_, stderr, _ := runInContainer(container, "rm /home/vcap/readonly/"+preExistingFile)
-		Ω(stderr).Should(ContainSubstring("Read-only file system"))
-		_, stderr, _ = runInContainer(container, "rm /home/vcap/readonly/"+newFile)
-		Ω(stderr).Should(ContainSubstring("Read-only file system"))
+		process, err = container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "touch",
+			Args: []string{"/home/alice/readonly/new_file"},
+		}, silentProcessIO)
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).ShouldNot(Equal(0))
+
+		process, err = container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ls",
+			Args: []string{"/home/alice/readonly"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).ShouldNot(gbytes.Say("new_file"))
 	})
 
 	It("can mount a read/write BindMount (#75464648)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
-					SrcPath: "/home/vcap",
-					DstPath: "/home/vcap/readwrite",
+					SrcPath: "/tmp",
+					DstPath: "/home/alice/readwrite",
 					Mode:    garden.BindMountModeRW,
 					Origin:  garden.BindMountOriginContainer,
 				},
 			},
 		})
 
-		stdout := runInContainerSuccessfully(container, "ls /home/vcap/readwrite")
-		Ω(stdout).ShouldNot(ContainSubstring("new_file"))
-		runInContainerSuccessfully(container, "touch /home/vcap/readwrite/new_file")
-		stdout = runInContainerSuccessfully(container, "ls /home/vcap/readwrite")
-		Ω(stdout).Should(ContainSubstring("new_file"))
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ls",
+			Args: []string{"/home/alice/readwrite"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).ShouldNot(gbytes.Say("new_file"))
+
+		buffer = gbytes.NewBuffer()
+		process, err = container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "touch",
+			Args: []string{"/home/alice/readwrite/new_file"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+
+		buffer = gbytes.NewBuffer()
+		process, err = container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ls",
+			Args: []string{"/home/alice/readwrite"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).Should(gbytes.Say("new_file"))
 	})
 })

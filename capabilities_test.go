@@ -7,7 +7,8 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = Describe("dropping capabilities", func() {
+// TODO: Add capcheck to garden-acceptance bosh release, bind mount in to containers
+var _ = PDescribe("dropping capabilities", func() {
 	var container garden.Container
 
 	Context("for privileged containers", func() {

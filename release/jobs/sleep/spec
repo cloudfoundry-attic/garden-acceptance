@@ -1,0 +1,10 @@
+---
+name: sleep
+
+templates:
+  sleep_ctl.erb: bin/sleep_ctl
+
+packages:
+  - rootfs
+
+properties: {}

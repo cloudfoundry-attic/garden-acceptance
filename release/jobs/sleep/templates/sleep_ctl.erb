@@ -1,0 +1,76 @@
+#!/bin/bash -e
+
+RUN_DIR=/var/vcap/sys/run/sleep
+LOG_DIR=/var/vcap/sys/log/sleep
+PIDFILE=$RUN_DIR/sleep.pid
+
+mkdir -p /var/vcap/sys/log/monit
+exec 1>> /var/vcap/sys/log/monit/sleep.out.log
+exec 2>> /var/vcap/sys/log/monit/sleep.err.log
+
+case $1 in
+
+  start)
+    if [ -f "$PIDFILE" ]; then
+      pid=$(head -1 "$PIDFILE")
+
+      if [ -n "$pid" ] && [ -e /proc/$pid ]; then
+        echo "Sleep is already running (pid: $pid); aborting."
+        exit 1
+      fi
+
+      echo "Removing stale pidfile..."
+      rm "$PIDFILE"
+    fi
+
+    mkdir -p $RUN_DIR
+    mkdir -p $LOG_DIR
+
+    ROOTFS_NAMES=("alice cflinuxfs2 empty fusefs")
+    for NAME in $ROOTFS_NAMES
+    do
+      TARGET_DIR=/var/vcap/packages/rootfs/${NAME}
+      rm -rf $TARGET_DIR
+      mkdir $TARGET_DIR
+      tar -C $TARGET_DIR -pxzf /var/vcap/packages/rootfs/${NAME}.tgz
+    done
+
+    echo $$ > $PIDFILE
+
+    while true; do
+      sleep 60
+    done
+
+    ;;
+
+  stop)
+    pid=$(cat $PIDFILE)
+
+    for i in $(seq 30); do
+      echo "sending TERM to ${pid}..."
+      if kill $pid; then
+        sleep 1
+      else
+        echo "exited"
+        exit 0
+      fi
+    done
+
+    echo "timed out; sending SIGQUIT followed by SIGKILL to ${pid}..."
+    if kill -QUIT $pid; then
+      sleep 5
+
+      echo "killing ${pid}..."
+      kill -9 $pid
+    fi
+
+    echo "killed"
+
+    ;;
+
+  *)
+    echo "Usage: $0 {start|stop}"
+
+    ;;
+
+esac

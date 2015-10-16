@@ -1,14 +1,15 @@
 # Garden Acceptance Suite
 
-## Running
+## Running the tests
 
-1. Install Vagrant and VirtualBox
-1. `vagrant up`
-1. `./scripts/test`
-
-## Updating garden-linux
-
-Run `sudo /vagrant/vagrant/install_garden_linux <SHA>` on the vagrant machine.
+1. Set up [BOSH Lite](https://github.com/cloudfoundry/bosh-lite).
+1. Clone
+   [Garden-Linux-Release](https://github.com/cloudfoundry-incubator/garden-linux-release)
+   in a neighboring directory to this repo. Update submodules and create/upload
+   a release.
+1. In the `release` subdirectory of this repo, create and upload a release.
+1. Deploy using the `manifests/bosh-lite.yml` manifest.
+1. `ginkgo`!
 
 ## Updating Docker images
 

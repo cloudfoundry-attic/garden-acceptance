@@ -10,7 +10,7 @@ import (
 
 var _ = Describe("fusefs", func() {
 	It("can be mounted", func() {
-		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: "/home/vagrant/garden/rootfs/fusefs"})
+		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: "/var/vcap/packages/rootfs/fusefs"})
 		mountpoint := "/tmp/fuse-test"
 
 		process, err := container.Run(garden.ProcessSpec{User: "root", Path: "mkdir", Args: []string{"-p", mountpoint}}, silentProcessIO)
