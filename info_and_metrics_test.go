@@ -54,6 +54,34 @@ var _ = Describe("info and metrics", func() {
 			Ω(postRequestMetrics.NetworkStat.TxBytes).Should(BeNumerically(">", preRequestMetrics.NetworkStat.TxBytes))
 			Ω(postRequestMetrics.NetworkStat.RxBytes).Should(BeNumerically(">", preRequestMetrics.NetworkStat.RxBytes))
 		})
+
+		It("returns disk usage info", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{
+				Limits: garden.Limits{
+					Disk: garden.DiskLimits{
+						Scope:    garden.DiskLimitScopeExclusive,
+						ByteHard: 1024 * 1024 * 100,
+					},
+				},
+			})
+
+			preDdMetrics, err := container.Metrics()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "dd",
+				Args: []string{"if=/dev/urandom", "of=/etc/junk", "bs=1M", "count=1"},
+			}, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0))
+
+			postDdMetrics, err := container.Metrics()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(postDdMetrics.DiskStat.ExclusiveBytesUsed).Should(
+				BeNumerically(">", preDdMetrics.DiskStat.ExclusiveBytesUsed))
+		})
 	})
 
 	Describe("Client.BulkMetrics()", func() {
@@ -62,6 +90,38 @@ var _ = Describe("info and metrics", func() {
 			metricsEntries, err := gardenClient.BulkMetrics([]string{"foo"})
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(metricsEntries["foo"].Metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
+		})
+
+		It("returns disk usage info", func() {
+			handle := "myFirstContainer"
+			container := createContainer(gardenClient, garden.ContainerSpec{
+				Handle: handle,
+				Limits: garden.Limits{
+					Disk: garden.DiskLimits{
+						Scope:    garden.DiskLimitScopeExclusive,
+						ByteHard: 1024 * 1024 * 100,
+					},
+				},
+			})
+
+			bulk, err := gardenClient.BulkMetrics([]string{handle})
+			Ω(err).ShouldNot(HaveOccurred())
+			preDdMetrics := bulk[handle]
+
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "dd",
+				Args: []string{"if=/dev/urandom", "of=/etc/junk", "bs=1M", "count=1"},
+			}, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(Equal(0))
+
+			bulk, err = gardenClient.BulkMetrics([]string{handle})
+			Ω(err).ShouldNot(HaveOccurred())
+			postDdMetrics := bulk[handle]
+
+			Ω(postDdMetrics.Metrics.DiskStat.ExclusiveBytesUsed).Should(
+				BeNumerically(">", preDdMetrics.Metrics.DiskStat.ExclusiveBytesUsed))
 		})
 	})
 })
