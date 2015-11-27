@@ -29,7 +29,7 @@ var _ = Describe("user mapping", func() {
 		Ω(process.Wait()).Should(Equal(0))
 
 		process, err = container.Run(
-			garden.ProcessSpec{User: "root", Path: "touch", Args: []string{"/i_am_root"}},
+			garden.ProcessSpec{User: "root", Path: "touch", Args: []string{"/etc/i_am_root"}},
 			silentProcessIO,
 		)
 		Ω(err).ShouldNot(HaveOccurred())
@@ -37,12 +37,12 @@ var _ = Describe("user mapping", func() {
 
 		buffer = gbytes.NewBuffer()
 		process, err = container.Run(
-			garden.ProcessSpec{User: "alice", Path: "touch", Args: []string{"/i_am_not_root"}},
+			garden.ProcessSpec{User: "alice", Path: "touch", Args: []string{"/etc/i_am_not_root"}},
 			recordedProcessIO(buffer),
 		)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).ShouldNot(Equal(0))
-		Ω(buffer).Should(gbytes.Say("touch: /i_am_not_root: Permission denied"))
+		Ω(buffer).Should(gbytes.Say("touch: /etc/i_am_not_root: Permission denied"))
 	}
 
 	It("maintains permissions from a garden directory rootfs (#92808274)", func() {
