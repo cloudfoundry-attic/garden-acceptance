@@ -14,7 +14,7 @@ var _ = Describe("bind_mounts", func() {
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
 					SrcPath: "/var/vcap/packages",
-					DstPath: "/home/alice/readonly",
+					DstPath: "/home/alice/bindmount/readonly",
 					Mode:    garden.BindMountModeRO,
 				},
 			},
@@ -24,7 +24,7 @@ var _ = Describe("bind_mounts", func() {
 		process, err := container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "ls",
-			Args: []string{"/home/alice/readonly"},
+			Args: []string{"/home/alice/bindmount/readonly"},
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
@@ -33,19 +33,31 @@ var _ = Describe("bind_mounts", func() {
 		process, err = container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "touch",
-			Args: []string{"/home/alice/readonly/new_file"},
+			Args: []string{"/home/alice/bindmount/readonly/new_file"},
 		}, silentProcessIO)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).ShouldNot(Equal(0))
 
+		buffer = gbytes.NewBuffer()
 		process, err = container.Run(garden.ProcessSpec{
 			User: "root",
 			Path: "ls",
-			Args: []string{"/home/alice/readonly"},
+			Args: []string{"/home/alice/bindmount/readonly"},
 		}, recordedProcessIO(buffer))
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).Should(Equal(0))
 		Ω(buffer).ShouldNot(gbytes.Say("new_file"))
+
+		buffer = gbytes.NewBuffer()
+		process, err = container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "ls",
+			Args: []string{"-l", "/home/alice"},
+		}, recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(Equal(0))
+		Ω(buffer).ShouldNot(gbytes.Say("65534"))
+		Ω(buffer).ShouldNot(gbytes.Say("nobody"))
 	})
 
 	It("can mount a read/write BindMount (#75464648)", func() {
