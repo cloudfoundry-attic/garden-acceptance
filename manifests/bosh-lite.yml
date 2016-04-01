@@ -77,7 +77,6 @@ properties:
     listen_network: tcp
     listen_address: 0.0.0.0:7777
     network_mtu: 1499
-    enable_graph_cleanup: false
-    persistent_image_list: ["/var/vcap/packages/busybox"]
+    graph_cleanup_threshold_in_mb: -1
     port_pool:
       size: 5
