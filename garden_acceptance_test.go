@@ -63,6 +63,9 @@ var _ = Describe("Garden Acceptance Tests", func() {
 
 				err = container.SetProperty("foo", "baz")
 				Ω(err).ShouldNot(HaveOccurred())
+				value, err = container.Property("foo")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(value).Should(Equal("baz"))
 
 				err = container.SetProperty("fiz", "buz")
 				Ω(err).ShouldNot(HaveOccurred())
@@ -70,10 +73,27 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				err = container.RemoveProperty("foo")
 				Ω(err).ShouldNot(HaveOccurred())
 
+				_, err = container.Property("foo")
+				Ω(err).Should(MatchError("property does not exist: foo"))
+
+				_, err = container.Property("bar")
+				Ω(err).Should(MatchError("property does not exist: bar"))
+
 				properties, err := container.Properties()
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(properties).Should(Equal(garden.Properties{"fiz": "buz"}))
+			})
+
+			It("can filter containers by property", func() {
+				createContainer(gardenClient, garden.ContainerSpec{
+					Properties: garden.Properties{"foo": "othercontainer"},
+				})
+				createContainer(gardenClient, garden.ContainerSpec{})
+
+				containers, err := gardenClient.Containers(map[string]string{"foo": "bar"})
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(containers).Should(ConsistOf(container))
 			})
 		})
 
