@@ -212,6 +212,46 @@ var _ = Describe("networking", func() {
 		// Ω(err).ShouldNot(HaveOccurred())
 		// Ω(stdout).Should(ContainSubstring("MTU:1499"))
 	})
+
+	It("container ip reuse", func() {
+		containerIP := func(container garden.Container) string {
+			info, err := container.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+			return info.ContainerIP
+		}
+
+		one := createContainer(gardenClient, garden.ContainerSpec{})
+		two := createContainer(gardenClient, garden.ContainerSpec{})
+
+		ipOne := containerIP(one)
+		ipTwo := containerIP(two)
+		Ω(ipTwo).ShouldNot(Equal(ipOne))
+
+		Ω(gardenClient.Destroy(one.Handle())).To(Succeed())
+
+		three := createContainer(gardenClient, garden.ContainerSpec{})
+		ipThree := containerIP(three)
+		Ω(ipThree).Should(Equal(ipOne))
+
+		hostPort, containerPort := uint32(8080), uint32(9090)
+		_, _, err := three.NetIn(hostPort, containerPort)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		_, err = three.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "sh",
+			Args: []string{"-c", fmt.Sprintf("echo hello | nc -l -p %d", containerPort)},
+		}, silentProcessIO)
+		Ω(err).ShouldNot(HaveOccurred())
+		time.Sleep(time.Millisecond * 100)
+
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", hostIP, hostPort))
+		Ω(err).ShouldNot(HaveOccurred())
+
+		message, err := bufio.NewReader(conn).ReadString('\n')
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(message).Should(Equal("hello\n"))
+	})
 })
 
 func tcpRule(ip string, port uint16) garden.NetOutRule {
