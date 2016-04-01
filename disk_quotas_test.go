@@ -64,6 +64,18 @@ var _ = Describe("disk quotas", func() {
 		It("restricts quotas to a single container", func() {
 			verifyQuotasOnlyAffectASingleContainer(rootfs)
 		})
+
+		It("does not create the container if it will immediately exceed its disk quota", func() {
+			_, err := gardenClient.Create(garden.ContainerSpec{
+				RootFSPath: "docker:///cloudfoundry/garden-pm#alice",
+				Limits: garden.Limits{
+					Disk: garden.DiskLimits{ByteHard: 512, Scope: garden.DiskLimitScopeTotal},
+				},
+			})
+
+			Ω(err).Should(MatchError(ContainSubstring("quota exceeded")))
+			Ω(gardenClient.Containers(garden.Properties{})).Should(HaveLen(0))
+		})
 	})
 
 	Context("when the container is created from a directory rootfs (#95436952)", func() {
