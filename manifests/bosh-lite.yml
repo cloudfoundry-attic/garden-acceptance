@@ -79,3 +79,5 @@ properties:
     network_mtu: 1499
     enable_graph_cleanup: false
     persistent_image_list: ["/var/vcap/packages/busybox"]
+    port_pool:
+      size: 5

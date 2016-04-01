@@ -24,8 +24,10 @@ func TestGardenAcceptance(t *testing.T) {
 
 var gardenClient client.Client
 
+var hostIP = "10.244.16.6"
+
 var _ = BeforeSuite(func() {
-	gardenClient = client.New(connection.New("tcp", "10.244.16.6:7777"))
+	gardenClient = client.New(connection.New("tcp", hostIP+":7777"))
 })
 
 var _ = BeforeEach(func() {

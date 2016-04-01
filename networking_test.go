@@ -1,7 +1,10 @@
 package garden_acceptance_test
 
 import (
+	"bufio"
+	"fmt"
 	"net"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 
@@ -11,6 +14,77 @@ import (
 )
 
 var _ = Describe("networking", func() {
+	Describe("NetIn rules", func() {
+		verifyNetIn := func(container garden.Container, hostPort, containerPort uint32) {
+			_, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "sh",
+				Args: []string{"-c", fmt.Sprintf("echo hello | nc -l -p %d", containerPort)},
+			}, silentProcessIO)
+			Ω(err).ShouldNot(HaveOccurred())
+			time.Sleep(time.Millisecond * 100)
+
+			conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", hostIP, hostPort))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			message, err := bufio.NewReader(conn).ReadString('\n')
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(message).Should(Equal("hello\n"))
+		}
+
+		It("works when ports are provided", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
+
+			hostPort, containerPort := uint32(8080), uint32(9090)
+			returnedHostPort, returnedContainerPort, err := container.NetIn(hostPort, containerPort)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(returnedHostPort).Should(Equal(hostPort))
+			Ω(returnedContainerPort).Should(Equal(containerPort))
+
+			verifyNetIn(container, hostPort, containerPort)
+		})
+
+		It("works when ports are not provided", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
+
+			hostPort, containerPort, err := container.NetIn(0, 0)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			verifyNetIn(container, hostPort, containerPort)
+		})
+
+		// TODO: include restarting in the test, test with snapshotting
+		It("has FIFO semantics on host side port reuse for NetIn rules", func() {
+			// port_pool_size is 5 in manifest
+			containerA := createContainer(gardenClient, garden.ContainerSpec{})
+			containerAPort, _, err := containerA.NetIn(0, 0)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			containerB := createContainer(gardenClient, garden.ContainerSpec{})
+			containerBPort, _, err := containerB.NetIn(0, 0)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			containerC := createContainer(gardenClient, garden.ContainerSpec{})
+			for i := 0; i < 3; i++ {
+				_, _, err := containerC.NetIn(0, 0)
+				Ω(err).ShouldNot(HaveOccurred())
+			}
+
+			Ω(gardenClient.Destroy(containerB.Handle())).Should(Succeed())
+			Ω(gardenClient.Destroy(containerA.Handle())).Should(Succeed())
+			Ω(gardenClient.Destroy(containerC.Handle())).Should(Succeed())
+
+			containerD := createContainer(gardenClient, garden.ContainerSpec{})
+			firstReusedPort, _, err := containerD.NetIn(0, 0)
+			Ω(err).ShouldNot(HaveOccurred())
+			secondReusedPort, _, err := containerD.NetIn(0, 0)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(firstReusedPort).To(Equal(containerBPort))
+			Ω(secondReusedPort).To(Equal(containerAPort))
+		})
+	})
+
 	It("gives a better error message when NetOut is given port and no protocol (#87201436)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
 		err := container.NetOut(garden.NetOutRule{
