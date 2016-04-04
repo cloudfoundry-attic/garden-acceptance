@@ -28,27 +28,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(buffer).Should(gbytes.Say("hello"))
 		})
 
-		Context("that's privileged", func() {
-			BeforeEach(func() {
-				container = createContainer(gardenClient, garden.ContainerSpec{Privileged: true})
-			})
-
-			It("can set rlimits when running processes", func() {
-				var nofile uint64 = 1234
-				output := gbytes.NewBuffer()
-				process, err := container.Run(garden.ProcessSpec{
-					User:   "root",
-					Path:   "sh",
-					Args:   []string{"-c", "ulimit -n"},
-					Limits: garden.ResourceLimits{Nofile: &nofile},
-				}, recordedProcessIO(output))
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Eventually(output).Should(gbytes.Say("1234"))
-				Ω(process.Wait()).Should(Equal(0))
-			})
-		})
-
 		Context("with initial properties", func() {
 			BeforeEach(func() {
 				container = createContainer(gardenClient, garden.ContainerSpec{
@@ -209,15 +188,6 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Eventually(output).Should(gbytes.Say("1234"))
 				Ω(process.Wait()).Should(Equal(0))
 			})
-		})
-	})
-
-	Describe("iodaemon", func() {
-		It("supports a timeout when the process fails to link (#77842604)", func() {
-			iodaemon := "/home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/skeleton/bin/iodaemon"
-			stdout, _, err := runCommand("timeout 3s " + iodaemon + " -timeout 1s spawn /tmp/socketPath bash -c cat <&0; echo $?")
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(stdout).NotTo(ContainSubstring("124"), "124 means `timeout` timed out.")
 		})
 	})
 
