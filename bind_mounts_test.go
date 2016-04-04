@@ -8,6 +8,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
+// TODO: Check files are/aren't written on host as appropriate
 var _ = Describe("bind_mounts", func() {
 	It("can mount a read-only BindMount (#75464648)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
@@ -60,14 +61,13 @@ var _ = Describe("bind_mounts", func() {
 		Ω(buffer).ShouldNot(gbytes.Say("nobody"))
 	})
 
-	It("can mount a read/write BindMount (#75464648)", func() {
+	PIt("can mount a read/write BindMount (#75464648)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
-					SrcPath: "/tmp",
+					SrcPath: "/var/vcap/packages",
 					DstPath: "/home/alice/readwrite",
 					Mode:    garden.BindMountModeRW,
-					Origin:  garden.BindMountOriginContainer,
 				},
 			},
 		})

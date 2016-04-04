@@ -9,7 +9,7 @@ import (
 )
 
 var _ = Describe("fusefs", func() {
-	It("can be mounted", func() {
+	PIt("can be mounted", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{Privileged: true, RootFSPath: "/var/vcap/packages/rootfs/fusefs"})
 		mountpoint := "/tmp/fuse-test"
 

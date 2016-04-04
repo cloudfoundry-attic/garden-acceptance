@@ -19,7 +19,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	Describe("a container", func() {
 		var container garden.Container
 
-		It("can be run with an (essentially) empty rootfs (#91423716)", func() {
+		PIt("can be run with an (essentially) empty rootfs (#91423716)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/empty"})
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/hello"}, recordedProcessIO(buffer))
@@ -221,7 +221,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(results).Should(ConsistOf(BeNil(), HaveOccurred()))
 		})
 
-		It("fails when attempting to delete a non-existant container (#86044470)", func() {
+		PIt("fails when attempting to delete a non-existant container (#86044470)", func() {
 			err := gardenClient.Destroy("asdf")
 			Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "asdf"}))
 		})
@@ -298,7 +298,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(err).Should(HaveOccurred())
 		})
 
-		It("does not allow creating an already existing container", func() {
+		PIt("does not allow creating an already existing container", func() {
 			container, err := gardenClient.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 			_, err = gardenClient.Create(garden.ContainerSpec{Handle: container.Handle()})
@@ -306,7 +306,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	It("mounts /proc read-only", func() {
+	PIt("mounts /proc read-only", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{User: "root", Path: "cat", Args: []string{"/proc/mounts"}}, recordedProcessIO(buffer))
