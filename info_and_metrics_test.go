@@ -39,7 +39,8 @@ var _ = Describe("info and metrics", func() {
 			Ω(metrics.CPUStat.Usage).Should(BeNumerically(">", 0))
 		})
 
-		It("returns network statistics", func() {
+		// Diego / Concourse don't use this
+		PIt("returns network statistics", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{})
 			preRequestMetrics, err := container.Metrics()
 			Ω(err).ShouldNot(HaveOccurred())
