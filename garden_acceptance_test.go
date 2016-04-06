@@ -298,11 +298,11 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(err).Should(HaveOccurred())
 		})
 
-		PIt("does not allow creating an already existing container", func() {
+		It("does not allow creating an already existing container", func() {
 			container, err := gardenClient.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 			_, err = gardenClient.Create(garden.ContainerSpec{Handle: container.Handle()})
-			Ω(err).Should(HaveOccurred(), "Expected an error when creating a Garden container with an existing handle")
+			Ω(err.Error()).Should(MatchRegexp(`Handle '[\w-]+' already in use`))
 		})
 	})
 
