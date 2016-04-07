@@ -7,7 +7,7 @@ import (
 )
 
 var _ = Describe("memory limits", func() {
-	It("mem", func() {
+	It("sets a memory limit", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			Limits: garden.Limits{Memory: garden.MemoryLimits{LimitInBytes: 1024 * 1024 * 10}},
 		})
