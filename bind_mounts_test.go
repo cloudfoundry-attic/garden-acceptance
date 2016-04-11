@@ -61,11 +61,12 @@ var _ = Describe("bind_mounts", func() {
 		Ω(buffer).ShouldNot(gbytes.Say("nobody"))
 	})
 
+	// TODO: pre test file cleanup on host
 	PIt("can mount a read/write BindMount (#75464648)", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{
 			BindMounts: []garden.BindMount{
 				garden.BindMount{
-					SrcPath: "/var/vcap/packages",
+					SrcPath: "/home/vcap",
 					DstPath: "/home/alice/readwrite",
 					Mode:    garden.BindMountModeRW,
 				},
