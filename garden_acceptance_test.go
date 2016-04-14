@@ -53,10 +53,10 @@ var _ = Describe("Garden Acceptance Tests", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				_, err = container.Property("foo")
-				Ω(err.Error()).Should(ContainSubstring("cannot Get %s:foo", container.Handle()))
+				Ω(err.Error()).Should(ContainSubstring("property does not exist: foo"))
 
 				_, err = container.Property("bar")
-				Ω(err.Error()).Should(ContainSubstring("cannot Get %s:bar", container.Handle()))
+				Ω(err.Error()).Should(ContainSubstring("property does not exist: bar"))
 
 				properties, err := container.Properties()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -221,7 +221,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 			Ω(results).Should(ConsistOf(BeNil(), HaveOccurred()))
 		})
 
-		PIt("fails when attempting to delete a non-existant container (#86044470)", func() {
+		It("fails when attempting to delete a non-existant container (#86044470)", func() {
 			err := gardenClient.Destroy("asdf")
 			Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "asdf"}))
 		})
@@ -306,7 +306,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		})
 	})
 
-	PIt("mounts /proc read-only", func() {
+	It("mounts /proc and /sys read-only", func() {
 		container := createContainer(gardenClient, garden.ContainerSpec{})
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{User: "root", Path: "cat", Args: []string{"/proc/mounts"}}, recordedProcessIO(buffer))
@@ -314,7 +314,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		Ω(process.Wait()).Should(Equal(0))
 		lines := strings.Split(string(buffer.Contents()), "\n")
 		for _, line := range lines {
-			if strings.Contains(line, "proc") {
+			if strings.Contains(line, "proc") || strings.Contains(line, "sys") {
 				Ω(line).Should(ContainSubstring("ro"))
 				Ω(line).ShouldNot(ContainSubstring("rw"))
 			}

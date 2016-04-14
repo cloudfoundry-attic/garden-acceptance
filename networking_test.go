@@ -44,7 +44,7 @@ var _ = Describe("networking", func() {
 			verifyNetIn(container, hostPort, containerPort)
 		})
 
-		PIt("works when ports are not provided", func() {
+		It("works when ports are not provided", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{})
 
 			hostPort, containerPort, err := container.NetIn(0, 0)
@@ -54,7 +54,7 @@ var _ = Describe("networking", func() {
 		})
 
 		// TODO: include restarting in the test, test with snapshotting
-		PIt("has FIFO semantics on host side port reuse for NetIn rules", func() {
+		It("has FIFO semantics on host side port reuse for NetIn rules", func() {
 			// port_pool_size is 5 in manifest
 			containerA := createContainer(gardenClient, garden.ContainerSpec{})
 			containerAPort, _, err := containerA.NetIn(0, 0)
