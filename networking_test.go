@@ -192,7 +192,7 @@ var _ = Describe("networking", func() {
 		Ω(err).Should(MatchError("the requested subnet (10.2.0.0/16) overlaps an existing subnet (10.2.0.0/24)"))
 	})
 
-	PIt("should allow configuration of MTU (#80221576)", func() {
+	It("should allow configuration of MTU (#80221576)", func() {
 		container, err := gardenClient.Create(garden.ContainerSpec{
 			RootFSPath: "docker:///onsi/grace-busybox",
 		})
