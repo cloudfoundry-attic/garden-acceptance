@@ -19,7 +19,7 @@ var _ = Describe("Garden Acceptance Tests", func() {
 	Describe("a container", func() {
 		var container garden.Container
 
-		PIt("can be run with an (essentially) empty rootfs (#91423716)", func() {
+		It("can be run with an (essentially) empty rootfs (#91423716)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{RootFSPath: "/var/vcap/packages/rootfs/empty"})
 			buffer := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{User: "root", Path: "/hello"}, recordedProcessIO(buffer))
