@@ -4,7 +4,7 @@ name: garden-acceptance
 director_uuid: <%= `bosh status --uuid` %>
 
 releases:
-  - name: guardian
+  - name: garden-runc
     version: latest
   - name: garden-acceptance
     version: latest
@@ -16,7 +16,7 @@ jobs:
       - name: sleep
         release: garden-acceptance
       - name: garden
-        release: guardian
+        release: garden-runc
     resource_pool: garden
     networks:
       - name: garden
