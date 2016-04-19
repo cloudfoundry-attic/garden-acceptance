@@ -14,6 +14,18 @@ import (
 )
 
 var _ = Describe("networking", func() {
+	It("uses the handle for the container hostname", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{})
+		buffer := gbytes.NewBuffer()
+		process, err := container.Run(garden.ProcessSpec{
+			Path: "hostname",
+		}, recordedProcessIO(buffer))
+		Ω(err).NotTo(HaveOccurred())
+		Ω(process.Wait()).To(Equal(0))
+
+		Ω(string(buffer.Contents())).To(ContainSubstring(container.Handle()))
+	})
+
 	Describe("NetIn rules", func() {
 		verifyNetIn := func(container garden.Container, hostPort, containerPort uint32) {
 			_, err := container.Run(garden.ProcessSpec{
