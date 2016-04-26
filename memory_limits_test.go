@@ -8,9 +8,14 @@ import (
 
 var _ = Describe("memory limits", func() {
 	It("sets a memory limit", func() {
+		limitInBytes := uint64(1024 * 1024 * 10)
 		container := createContainer(gardenClient, garden.ContainerSpec{
-			Limits: garden.Limits{Memory: garden.MemoryLimits{LimitInBytes: 1024 * 1024 * 10}},
+			Limits: garden.Limits{Memory: garden.MemoryLimits{LimitInBytes: limitInBytes}},
 		})
+
+		memoryLimit, err := container.CurrentMemoryLimits()
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(memoryLimit.LimitInBytes).To(Equal(limitInBytes))
 
 		process, err := container.Run(garden.ProcessSpec{
 			User: "root",
