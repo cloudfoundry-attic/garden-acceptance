@@ -146,6 +146,32 @@ var _ = Describe("Garden Acceptance Tests", func() {
 		}).Should(ContainSubstring("No such file or directory"))
 	})
 
+	It("can attach to a running process", func() {
+		container := createContainer(gardenClient, garden.ContainerSpec{})
+		process, err := container.Run(garden.ProcessSpec{
+			Path: "sh",
+			Args: []string{"-c", "while true; do echo hello && sleep 1; done"},
+		}, silentProcessIO)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		buffer := gbytes.NewBuffer()
+		attachedProcess, err := container.Attach(process.ID(), recordedProcessIO(buffer))
+		Ω(err).ShouldNot(HaveOccurred())
+		Eventually(buffer).Should(gbytes.Say("hello"))
+
+		processExited := make(chan struct{})
+		go func() {
+			attachedProcess.Wait()
+			close(processExited)
+		}()
+
+		time.Sleep(time.Second)
+		err = attachedProcess.Signal(garden.SignalTerminate)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Eventually(processExited, 3.0).Should(BeClosed())
+	})
+
 	Describe("Destroy", func() {
 		It("fails when attempting to delete a container twice (#76616270)", func() {
 			container := createContainer(gardenClient, garden.ContainerSpec{})
