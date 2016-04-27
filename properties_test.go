@@ -8,9 +8,9 @@ import (
 )
 
 var _ = Describe("properties", func() {
-	var container garden.Container
-
 	Context("with initial properties", func() {
+		var container garden.Container
+
 		BeforeEach(func() {
 			container = createContainer(gardenClient, garden.ContainerSpec{
 				Properties: garden.Properties{"foo": "bar"},
@@ -58,11 +58,8 @@ var _ = Describe("properties", func() {
 	})
 
 	Context("without initial properties", func() {
-		BeforeEach(func() {
-			container = createContainer(gardenClient, garden.ContainerSpec{})
-		})
-
 		It("can set a property (#87599106)", func() {
+			container := createContainer(gardenClient, garden.ContainerSpec{})
 			err := container.SetProperty("foo", "bar")
 			Ω(err).ShouldNot(HaveOccurred())
 
