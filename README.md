@@ -4,7 +4,7 @@
 
 1. Set up [BOSH Lite](https://github.com/cloudfoundry/bosh-lite).
 1. Clone
-   [Garden-Linux-Release](https://github.com/cloudfoundry-incubator/garden-linux-release)
+   [Garden-RunC-Release](https://github.com/cloudfoundry-incubator/garden-runc-release)
    in a neighboring directory to this repo. Update submodules and create/upload
    a release.
 1. In the `release` subdirectory of this repo, create and upload a release.
